@@ -1,0 +1,13 @@
+# START OF FILE FunPayCortex/delete.json
+[
+  "hooks",
+  "FunPay Cortex.spec", // Assuming you rename the spec file if you build an exe
+  "plugins/del_old_users.py", // Example old plugin to remove
+  "storage/plugins/del_old_users_plugin_data.json", // Example old data
+  "storage/plugins/del_old_users_settings.json", // Example old settings
+  "plugins/cookie_changer.py", // Example old plugin
+  "locales/eng.py", // Old locale file name?
+  "setup.py", // Setup script if not needed after build
+  "linux_install.sh" // Old install script
+]
+# END OF FILE FunPayCortex/delete.json

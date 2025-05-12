@@ -1,0 +1,44 @@
+# START OF FILE FunPayCortex/FunPayCortex@.service
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/%i/FunPayCortex # Changed path
+ExecStart=/home/%i/pyvenv/bin/python /home/%i/FunPayCortex/main.py # Changed path
+Restart=always
+RestartSec=10s
+SyslogIdentifier=FunPayCortex-%i # Changed identifier
+User=%i
+Environment="LANG=en_US.utf8"
+Environment="FPCORTEX_IS_RUNNIG_AS_SERVICE=1" # Changed ENV var name
+
+ExecStartPre=+/usr/bin/install -m 755 -o root -g root -d /run/FunPayCortex # Changed path
+ExecStartPre=+/usr/bin/install -m 755 -o %i -g root -d /run/FunPayCortex/%i # Changed path
+
+PIDFile=/run/FunPayCortex/%i/FunPayCortex.pid # Changed path
+
+# FunPayCortex security hardening, all of the below entries are optional, but their existence improves security of your system
+# * As stated above this entries are optional, if some of the below entries are not supported by your system, you can safely remove them
+# * If something doesn't work, you can try to remove some of the below entries, but please do it one by one, so you can identify which entry is causing the issue
+DevicePolicy=closed
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateMounts=yes
+PrivateTmp=yes
+PrivateUsers=yes
+ProtectHostname=yes
+# Prevent writes to /usr, /boot, and /etc
+ProtectSystem=full
+ReadWritePaths=/home/%i/FunPayCortex /home/%i/pyvenv -/run/FunPayCortex # Changed path
+# Prevent other services from accessing PID file
+# UMask=0077
+# End of FunPayCortex security hardening
+
+[Unit]
+After=network.target
+Description=FunPayCortex Bot Service (on %I) # Changed description
+# Documentation=YOUR_DOCUMENTATION_URL_HERE # Add your documentation URL if you have one
+
+# END OF FILE FunPayCortex/FunPayCortex@.service
