@@ -11,15 +11,16 @@ import os
 import zipfile
 import shutil
 import json
+import sys # Добавлен sys для getattr(sys, 'frozen', False)
 
 
-logger = getLogger("FPC.update_checker") # Можно оставить или сменить на FPCortex
+logger = getLogger("FPC.update_checker") 
 localizer = Localizer()
 _ = localizer.translate
 
 HEADERS = {
     "accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28" # Рекомендуется указывать версию API
+    "X-GitHub-Api-Version": "2022-11-28" 
 }
 
 
@@ -27,7 +28,7 @@ class Release:
     """
     Класс, описывающий релиз.
     """
-    def __init__(self, name: str, description: str, sources_link: str, tag_name: str): # Добавил tag_name
+    def __init__(self, name: str, description: str, sources_link: str, tag_name: str): 
         """
         :param name: название релиза.
         :param description: описание релиза (список изменений).
@@ -37,7 +38,7 @@ class Release:
         self.name = name
         self.description = description
         self.sources_link = sources_link
-        self.tag_name = tag_name # Сохраняем имя тега
+        self.tag_name = tag_name 
 
 
 # Получение данных о новом релизе
@@ -51,38 +52,31 @@ def get_tags(current_tag: str) -> list[str] | None:
     try:
         page = 1
         all_tags_data: list[dict] = []
-        # Запрашиваем теги, пока не найдем текущий или пока не закончатся страницы
-        # Это немного неэффективно, если текущий тег очень старый, но для большинства случаев подойдет.
-        # GitHub API возвращает до 100 тегов на страницу (по умолчанию 30).
-        max_pages_to_check = 5 # Ограничение, чтобы не делать слишком много запросов
+        max_pages_to_check = 5 
         current_page_checked = 0
 
         while current_page_checked < max_pages_to_check :
-            url = f"https://api.github.com/repos/beedgee/FunPayCortex/tags?page={page}&per_page=100" # Изменен URL, добавлен per_page
+            url = f"https://api.github.com/repos/beedgee/FunPayCortex/tags?page={page}&per_page=100" 
             response = requests.get(url, headers=HEADERS, timeout=10)
-            response.raise_for_status() # Проверка на HTTP ошибки
+            response.raise_for_status() 
             
             current_page_tags = response.json()
-            if not current_page_tags: # Если страница пуста, значит теги закончились
+            if not current_page_tags: 
                 break
             
             all_tags_data.extend(current_page_tags)
             
-            # Проверяем, есть ли текущий тег среди загруженных
             if any(tag_info.get("name") == current_tag for tag_info in current_page_tags):
                 break 
             
             page += 1
             current_page_checked +=1
-            if current_page_checked < max_pages_to_check: time.sleep(1) # Небольшая задержка между запросами API
+            if current_page_checked < max_pages_to_check: time.sleep(1) 
 
         if not all_tags_data:
             logger.warning("Не удалось получить теги с GitHub или репозиторий не содержит тегов.")
             return None
             
-        # GitHub API возвращает теги обычно отсортированными по дате (новые сверху),
-        # но для надежности лучше отсортировать, если есть информация о дате коммита тега.
-        # Пока просто берем имена.
         tag_names = [tag_info.get("name") for tag_info in all_tags_data if tag_info.get("name")]
         return tag_names if tag_names else None
         
@@ -96,7 +90,7 @@ def get_tags(current_tag: str) -> list[str] | None:
         return None
 
 
-def get_next_tag(tags: list[str], current_tag: str) -> str | None: # Возвращает следующий тег (новее)
+def get_next_tag(tags: list[str], current_tag: str) -> str | None: 
     """
     Ищет след. тег после переданного (более новый).
     Если не находит текущий тег, возвращает первый (самый новый) из списка.
@@ -111,13 +105,13 @@ def get_next_tag(tags: list[str], current_tag: str) -> str | None: # Возвр�
         return None
     try:
         curr_index = tags.index(current_tag)
-        if curr_index > 0: # Если текущий тег не самый новый (индекс 0)
-            return tags[curr_index - 1] # Возвращаем предыдущий элемент (более новый)
+        if curr_index > 0: 
+            return tags[curr_index - 1] 
         else:
-            return None # Текущий тег самый новый
-    except ValueError: # Текущий тег не найден в списке
+            return None 
+    except ValueError: 
         logger.warning(f"Текущий тег '{current_tag}' не найден в списке тегов с GitHub. Возможно, используется нестандартная версия. Будет предложено обновление до последней версии.")
-        return tags[0] # Предлагаем самый новый тег
+        return tags[0] 
 
 
 def get_releases(from_tag_exclusive: str | None, current_version_tag: str) -> list[Release] | None:
@@ -135,10 +129,10 @@ def get_releases(from_tag_exclusive: str | None, current_version_tag: str) -> li
         all_releases_data: list[dict] = []
         max_pages_to_check = 5
         current_page_checked = 0
-        found_from_tag = from_tag_exclusive is None # Если from_tag_exclusive is None, считаем что "нашли" и берем все до current_version_tag
+        found_from_tag = from_tag_exclusive is None 
         
         while current_page_checked < max_pages_to_check:
-            url = f"https://api.github.com/repos/beedgee/FunPayCortex/releases?page={page}&per_page=100" # Изменен URL
+            url = f"https://api.github.com/repos/beedgee/FunPayCortex/releases?page={page}&per_page=100" 
             response = requests.get(url, headers=HEADERS, timeout=10)
             response.raise_for_status()
             current_page_releases = response.json()
@@ -148,12 +142,8 @@ def get_releases(from_tag_exclusive: str | None, current_version_tag: str) -> li
             
             all_releases_data.extend(current_page_releases)
 
-            # Если from_tag_exclusive задан, и мы его нашли, то можно прекратить загрузку старых релизов
             if from_tag_exclusive and any(rel.get("tag_name") == from_tag_exclusive for rel in current_page_releases):
                 found_from_tag = True
-                # Можно было бы и тут break, но если вдруг релизы не строго по порядку, лучше собрать чуть больше
-                # и отфильтровать потом. GitHub обычно отдает от новых к старым.
-
             page += 1
             current_page_checked += 1
             if current_page_checked < max_pages_to_check: time.sleep(1)
@@ -163,38 +153,24 @@ def get_releases(from_tag_exclusive: str | None, current_version_tag: str) -> li
             return None
 
         releases_to_install = []
-        # Релизы обычно идут от новых к старым, поэтому для установки их нужно развернуть
         for rel_data in reversed(all_releases_data):
             tag_name = rel_data.get("tag_name")
             if not tag_name:
                 continue
 
-            # Логика фильтрации:
-            # 1. Если from_tag_exclusive был найден или не был задан:
             if found_from_tag:
-                 # Пропускаем сам from_tag_exclusive и все что старше него
                 if from_tag_exclusive and tag_name == from_tag_exclusive:
-                    continue # Начинаем собирать со следующего
+                    continue 
                 if from_tag_exclusive and releases_to_install and releases_to_install[-1].tag_name == from_tag_exclusive:
-                    # Если from_tag_exclusive был последним добавленным, и мы еще не начали собирать более новые
-                    pass # Эта проверка, вероятно, избыточна при обратном проходе
-
-                # Если мы уже начали собирать, или from_tag_exclusive не было
-                # Проверяем, что этот релиз новее текущей установленной версии
-                # (сравнивать теги как строки не всегда надежно для версий, но для простого vX.Y.Z должно работать)
-                # Более надежно было бы сравнивать версии, но это усложнит.
-                # Здесь предполагается, что GitHub отдает релизы в хронологическом порядке (новые выше).
-                # Поскольку мы идем в reversed, то от старых к новым.
-                if tag_name > current_version_tag: # Простое строковое сравнение.
+                    pass 
+                if tag_name > current_version_tag: 
                     release_name = rel_data.get("name", tag_name)
                     description = rel_data.get("body", "Нет описания.")
                     sources_link = rel_data.get("zipball_url")
                     if sources_link:
                         releases_to_install.append(Release(release_name, description, sources_link, tag_name))
-            
-            # Если from_tag_exclusive еще не найден, ищем его
             elif tag_name == from_tag_exclusive:
-                found_from_tag = True # Нашли, следующие итерации будут собирать релизы
+                found_from_tag = True 
 
         return releases_to_install if releases_to_install else None
         
@@ -224,27 +200,19 @@ def get_new_releases(current_tag: str) -> int | list[Release]:
 
     if tags_from_github is None:
         logger.warning("Не удалось получить список тегов с GitHub.")
-        return 1 # Ошибка получения тегов
+        return 1 
 
-    # tags_from_github обычно отсортированы от новых к старым
-    # Убедимся, что самый новый тег в начале
     latest_github_tag = tags_from_github[0] if tags_from_github else None
 
     if not latest_github_tag or latest_github_tag == current_tag:
         logger.info("Установлена последняя версия или текущая версия новее опубликованных.")
-        return 2 # Текущий тег - последний, или новее всего, что есть
-
-    # Если current_tag не найден среди тегов, но есть более новые - это странная ситуация
-    # (например, локальная версия, которой нет в удаленном репозитории).
-    # В этом случае, мы хотим предложить обновиться до самого последнего релиза.
-    # `get_releases` будет искать релизы новее `current_tag`.
-    # Если `current_tag` очень старый или "неправильный", `get_releases` вернет все более новые.
+        return 2 
     
-    releases = get_releases(current_tag, current_tag) # Передаем current_tag как точку отсчета "от"
+    releases = get_releases(current_tag, current_tag) 
 
     if releases is None or not releases:
         logger.info("Не найдено новых релизов для установки.")
-        return 3 # Не удалось получить данные о релизе или нет новых
+        return 3 
         
     logger.info(f"Найдено {len(releases)} новых релизов для установки.")
     return releases
@@ -260,9 +228,9 @@ def download_zip(url: str) -> int:
     :return: 0, если архив с обновлением загружен, иначе - 1.
     """
     logger.info(f"Загрузка архива обновления с {url}...")
-    os.makedirs("storage/cache", exist_ok=True) # Убедимся, что папка есть
+    os.makedirs("storage/cache", exist_ok=True) 
     try:
-        with requests.get(url, stream=True, timeout=60) as r: # Добавлен таймаут
+        with requests.get(url, stream=True, timeout=60) as r: 
             r.raise_for_status()
             with open("storage/cache/update.zip", 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
@@ -293,8 +261,6 @@ def extract_update_archive() -> str | int:
         os.makedirs(update_dir, exist_ok=True)
 
         with zipfile.ZipFile("storage/cache/update.zip", "r") as zip_ref:
-            # Первая запись в zip-файле, скачанном с GitHub, обычно является корневой папкой репозитория
-            # Например, "beedgee-FunPayCortex-aabbccddeeff"
             extracted_folder_name = zip_ref.namelist()[0].split('/')[0]
             zip_ref.extractall(update_dir)
         logger.info(f"Архив успешно распакован в: {os.path.join(update_dir, extracted_folder_name)}")
@@ -329,7 +295,7 @@ def create_backup() -> int:
     """
     logger.info("Создание резервной копии...")
     try:
-        with zipfile.ZipFile("backup.zip", "w", zipfile.ZIP_DEFLATED) as zip_f: # Добавил сжатие
+        with zipfile.ZipFile("backup.zip", "w", zipfile.ZIP_DEFLATED) as zip_f: 
             for folder in ["storage", "configs", "plugins"]:
                 if os.path.exists(folder):
                     zipdir(folder, zip_f)
@@ -354,7 +320,7 @@ def install_release(folder_name_from_zip: str) -> int:
     """
     logger.info(f"Установка релиза из папки: {folder_name_from_zip}...")
     release_source_path = os.path.join("storage/cache/update", folder_name_from_zip)
-    destination_path = "." # Корневая директория бота
+    destination_path = "." 
 
     if not os.path.exists(release_source_path):
         logger.error(f"Папка с обновлением '{release_source_path}' не найдена.")
@@ -365,30 +331,47 @@ def install_release(folder_name_from_zip: str) -> int:
         delete_json_path = os.path.join(release_source_path, "delete.json")
         if os.path.exists(delete_json_path):
             logger.info("Найден delete.json, удаляю указанные файлы/папки...")
-            with open(delete_json_path, "r", encoding="utf-8") as f:
-                items_to_delete = json.load(f)
-                for item_path_str in items_to_delete:
-                    full_item_path = os.path.join(destination_path, item_path_str) # Путь относительно корня бота
-                    if os.path.exists(full_item_path):
-                        if os.path.isfile(full_item_path):
-                            os.remove(full_item_path)
-                            logger.info(f"Удален файл: {full_item_path}")
-                        elif os.path.isdir(full_item_path):
-                            shutil.rmtree(full_item_path, ignore_errors=True)
-                            logger.info(f"Удалена папка: {full_item_path}")
+            try:
+                # Проверяем, не пустой ли файл, прежде чем пытаться его загрузить
+                if os.path.getsize(delete_json_path) > 0:
+                    with open(delete_json_path, "r", encoding="utf-8") as f:
+                        items_to_delete = json.load(f)
+                    if isinstance(items_to_delete, list): # Убедимся, что это список
+                        for item_path_str in items_to_delete:
+                            if not isinstance(item_path_str, str): # Пропускаем нестроковые элементы
+                                logger.warning(f"Некорректный элемент в delete.json (не строка): {item_path_str}")
+                                continue
+                            full_item_path = os.path.join(destination_path, item_path_str)
+                            if os.path.exists(full_item_path):
+                                if os.path.isfile(full_item_path):
+                                    os.remove(full_item_path)
+                                    logger.info(f"Удален файл: {full_item_path}")
+                                elif os.path.isdir(full_item_path):
+                                    shutil.rmtree(full_item_path, ignore_errors=True)
+                                    logger.info(f"Удалена папка: {full_item_path}")
+                            else:
+                                logger.warning(f"Файл/папка для удаления не найден: {full_item_path}")
                     else:
-                        logger.warning(f"Файл/папка для удаления не найден: {full_item_path}")
-        
-        # Копирование новых/обновленных файлов
+                        logger.error(f"Содержимое delete.json не является списком. Пропускаю удаление.")
+                else:
+                    logger.warning(f"Файл delete.json пуст, пропускаю удаление элементов из него.")
+            except json.JSONDecodeError as jde:
+                logger.error(f"Ошибка декодирования delete.json: {jde}. Пропускаю удаление элементов из него.")
+                logger.debug("TRACEBACK при обработке delete.json", exc_info=True) # Добавим traceback
+            except Exception as e_del:
+                logger.error(f"Неожиданная ошибка при обработке delete.json: {e_del}. Пропускаю удаление элементов из него.")
+                logger.debug("TRACEBACK при обработке delete.json", exc_info=True)
+        else:
+            logger.info("Файл delete.json не найден в обновлении, пропускаю этап удаления старых файлов по списку.")
+
         logger.info("Копирование файлов обновления...")
         for item_name in os.listdir(release_source_path):
-            if item_name == "delete.json": # Пропускаем сам delete.json
+            if item_name == "delete.json": 
                 continue
 
             source_item_full_path = os.path.join(release_source_path, item_name)
             dest_item_full_path = os.path.join(destination_path, item_name)
 
-            # Специальная обработка .exe для Windows скомпилированных версий
             if item_name.lower().endswith(".exe") and getattr(sys, 'frozen', False):
                 update_exe_dir = os.path.join(destination_path, "update")
                 os.makedirs(update_exe_dir, exist_ok=True)
@@ -398,7 +381,7 @@ def install_release(folder_name_from_zip: str) -> int:
 
             if os.path.isdir(source_item_full_path):
                 shutil.copytree(source_item_full_path, dest_item_full_path, dirs_exist_ok=True)
-            else: # Это файл
+            else: 
                 shutil.copy2(source_item_full_path, dest_item_full_path)
         logger.info("Файлы обновления успешно скопированы.")
         return 0
