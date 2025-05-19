@@ -11,11 +11,11 @@ import time
 from typing import TYPE_CHECKING
 from tg_bot import utils, static_keyboards as skb, keyboards as kb, CBT # keyboards as kb не используется, но оставим на всякий случай
 import telebot.apihelper
-from Utils.cardinal_tools import validate_proxy, cache_proxy_dict, check_proxy
+from Utils.cortex_tools import validate_proxy, cache_proxy_dict, check_proxy
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 
 if TYPE_CHECKING:
-    from cardinal import Cortex
+    from cortex import Cortex
 
 from telebot.types import CallbackQuery, Message
 import logging

@@ -39,7 +39,7 @@ mm_proxy = "🌐 Proxy"
 gs_autoraise = "{} Auto-boost listings"
 gs_autoresponse = "{} Auto-Responder"
 gs_autodelivery = "{} Auto-Delivery"
-gs_nultidelivery = "{} Multi-Delivery" # Note: "nultidelivery" might be a typo for "multidelivery" in original
+gs_nultidelivery = "{} Multi-Delivery" # Assuming "nultidelivery" is a typo for "multidelivery"
 gs_autorestore = "{} Restore listings"
 gs_autodisable = "{} Deactivate listings"
 gs_old_msg_mode = "{} Legacy message mode"
@@ -116,8 +116,9 @@ gf_file_created_now = "created"
 gf_file_creation_error_short = "creation error"
 no_lots_using_file = "No listings are using this file."
 gf_no_products_to_add = "No products were entered to add."
-gf_deleted_successfully = "File {file_name} successfully deleted."
-gf_already_deleted = "File {file_name} was already deleted."
+gf_deleted_successfully = "File '{file_name}' successfully deleted."
+gf_already_deleted = "File '{file_name}' was already deleted."
+
 
 # Blacklist Settings
 bl_autodelivery = "{} Do not deliver product"
@@ -132,7 +133,7 @@ tmplt_add_more = "➕ More Templates"
 tmplt_add_another = "➕ Another Template"
 tmplt_editing_header = "📝 Editing Template"
 tmplt_err_empty_text = "❌ Template text cannot be empty. Please enter text."
-tmplt_deleted_successfully = "✅ Template «{template_text}» successfully deleted."
+tmplt_deleted_successfully = "✅ Template '{template_text}' successfully deleted."
 
 # Greeting Settings
 gr_greetings = "{} Greet new users"
@@ -166,6 +167,9 @@ pl_no_commands = "This plugin has no registered commands."
 pl_delete_handler_failed = "⚠️ Error executing delete handler for plugin '{plugin_name}'. Plugin removed from list, but its data or files might remain. Check logs."
 pl_deleted_successfully = "✅ Plugin '{plugin_name}' successfully deleted. Restart FPCortex for changes to take effect."
 pl_file_delete_error = "⚠️ Failed to delete plugin file '{plugin_path}'. Check permissions and logs."
+pl_safe_source = "Source of safe plugins"
+pl_channel_button = "FunPay Cortex Channel"
+
 
 # Configs
 cfg_download_main = "📥 Main Config"
@@ -198,7 +202,7 @@ proxy_selected_not_applied = "ℹ️ Proxy {proxy_str} selected. Enable the prox
 proxy_deleted_successfully = "✅ Proxy {proxy_str} successfully removed from the list."
 proxy_delete_error_not_found = "⚠️ Error: proxy for deletion not found in the list."
 
-# Announcements (Assuming 'Объявления' means general announcements/ads)
+# Announcements
 an_an = "{} Announcements"
 an_ad = "{} Advertisements"
 
@@ -254,11 +258,12 @@ fpc_init = """✅ <b><u>FPCortex initialized!</u></b>
 📊 <b><i>Active orders:</i></b>  <code>{}</code>
 
 👨‍💻 <b><i>Author:</i></b> @beedge"""
+
 create_test_ad_key = "Enter the listing name to test auto-delivery."
-test_ad_key_created = """✅ A one-time key for delivering the listing «<code>{}</code>» has been created.
+test_ad_key_created = """✅ A one-time key for delivering the listing '<code>{}</code>' has been created.
 Send the command below in the chat with the buyer to deliver the product:
 <code>!autodelivery {}</code>"""
-about = """<b>🧠 FPCortex 🧠 v{}</b> 
+about = """<b>🧠 FPCortex 🧠 v{}</b>
 <i>Author:</i> @beedge"""
 sys_info = """<b>📊 System Summary</b>
 
@@ -293,6 +298,7 @@ act_edit_watermark = "Enter the new watermark text. Examples:\n{}\n<code>𝑭�
                      "<code>FPCx</code>\n<code>🤖</code>\n<code>🧠</code>\n\n" \
                      "Examples can be copied and edited.\nNote that on FunPay the emoji " \
                      "🧠 might look different.\n\nTo remove the watermark, send <code>-</code>."
+v_edit_watermark_current = "Current"
 watermark_changed = "✅ Watermark changed."
 watermark_deleted = "✅ Watermark removed."
 watermark_error = "⚠️ Invalid watermark."
@@ -300,7 +306,6 @@ logfile_not_found = "❌ Log file not found."
 logfile_sending = "Sending log file (this may take some time)... ⏳"
 logfile_error = "⚠️ Failed to send log file."
 logfile_deleted = "🗑️ Deleted {} log file(s)."
-# Updated strings for the update system
 update_no_tags = "❌ Failed to get version list from GitHub. Try again later."
 update_lasted = "✅ You have the latest version of FPCortex {} installed."
 update_get_error = "❌ Failed to get new version information from GitHub. Try again later."
@@ -380,7 +385,7 @@ copy_lot_name = "Send the exact name of the listing (as on FunPay)."
 act_create_gf = "Enter a name for the new product file (e.g., 'steam_keys')."
 gf_name_invalid = "🚫 Invalid file name.\n\n" \
                   "Only <b><u>English</u></b> " \
-                  "and <b><u>Russian</u></b> letters, numbers, and symbols <code>_</code>, <code>-</code>, and <code>space</code> are allowed." # Consider changing "Russian" if this is a fully English locale
+                  "and <b><u>Russian</u></b> letters, numbers, and symbols <code>_</code>, <code>-</code>, and <code>space</code> are allowed." # Note: "Russian" might need to be removed/changed if targeting only English
 gf_already_exists_err = "⚠️ File <code>{}</code> already exists."
 gf_creation_err = "⚠️ Error creating file <code>{}</code>."
 gf_created = "✅ File <code>storage/products/{}</code> created."
@@ -431,7 +436,7 @@ adv_description = """🧠 FPCortex v{} 🚀
 🧩 Plugin support
 🌟 And much more!
 
-👨‍💻 Author: @beedge""" # "Автовідновлення лотів" was Ukrainian, used English "Auto-restore listings"
+👨‍💻 Author: @beedge"""
 
 # - Menu Descriptions
 desc_main = "Hello! Choose what to configure 👇"
@@ -462,6 +467,7 @@ desc_pl = "Plugin information and settings.\n\n" \
           "<b><u>you must restart the bot</u></b> with the /restart command!"
 desc_au = "User authorization settings in the Telegram control panel."
 desc_proxy = "Manage proxy servers for bot operation."
+unknown_action = "Unknown action or button has expired."
 
 # - Command Descriptions
 cmd_menu = "open main menu"
@@ -518,6 +524,7 @@ v_chat_id = "<code>$chat_id</code> - chat ID"
 v_chat_name = "<code>$chat_name</code> - chat name"
 v_message_text = "<code>$message_text</code> - interlocutor's message text"
 v_username = "<code>$username</code> - interlocutor's nickname"
+v_cpu_core = "Core"
 
 # Exception Texts
 exc_param_not_found = "Parameter \"{}\" not found."
@@ -533,7 +540,7 @@ exc_cmd_duplicate = "Command or sub-command \"{}\" already exists."
 exc_cfg_parse_err = "Error in config {}, section [{}]: {}"
 exc_plugin_field_not_found = "Failed to load plugin \"{}\": missing required field \"{}\"."
 
-# Logs (Translated for developer understanding, keeping original structure)
+# Logs
 log_tg_initialized = "$MAGENTATelegram bot initialized."
 log_tg_started = "$CYANTelegram bot $YELLOW@{}$CYAN started."
 log_tg_handler_error = "An error occurred while executing Telegram bot handler."
@@ -607,7 +614,7 @@ crd_raise_time_err = 'Failed to boost listings in category $CYAN\"{}\"$RESET. Fu
 crd_raise_unexpected_err = "An unexpected error occurred while trying to boost listings in category $CYAN\"{}\"$RESET. Pausing for 10 seconds..."
 crd_raise_status_code_err = "Error {} while boosting listings in category $CYAN\"{}\"$RESET. Pausing for 1 min..."
 crd_lots_raised = "All listings in category $CYAN\"{}\"$RESET boosted!"
-crd_raise_wait_3600 = "Next attempt in {}." # Old name, same meaning
+crd_raise_wait_3600 = "Next attempt in {}."
 crd_msg_send_err = "An error occurred while sending message to chat $YELLOW{}$RESET."
 crd_msg_attempts_left = "Attempts left: $YELLOW{}$RESET."
 crd_msg_no_more_attempts_err = "Failed to send message to chat $YELLOW{}$RESET: attempt limit exceeded."
@@ -628,22 +635,21 @@ crd_handlers_registered = "Handlers from $YELLOW{}.py$RESET registered."
 crd_handler_err = "An error occurred while executing handler."
 crd_tg_au_err = "Failed to change message with user information: {}. Trying without link."
 
-# New keys, added during redesign (already translated above when they first appeared, listed here for completeness of the original structure)
-# acc_balance_available = "available"
-# gf_infinity = "infinity"
-# gf_count_error = "count error"
-# gf_file_not_found_short = "not found"
-# gf_not_linked = "not linked"
-# gf_file_created_now = "created"
-# gf_file_creation_error_short = "creation error"
-# no_lots_using_file = "No listings are using this file."
-# gf_no_products_to_add = "No products were entered to add."
-# gf_deleted_successfully = "File {file_name} successfully deleted."
-# gf_already_deleted = "File {file_name} was already deleted."
-# ar_no_valid_commands_entered = "No valid commands entered."
-# ar_default_response_text = "The response for this command has not been configured yet. Please edit it."
-# ar_default_notification_text = "User $username entered command: $message_text"
-# ar_command_deleted_successfully = "Command/set '{command_name}' successfully deleted."
+acc_balance_available = "available"
+gf_infinity = "infinity"
+gf_count_error = "count error"
+gf_file_not_found_short = "not found"
+gf_not_linked = "not linked"
+gf_file_created_now = "created"
+gf_file_creation_error_short = "creation error"
+no_lots_using_file = "No listings are using this file."
+gf_no_products_to_add = "No products were entered to add."
+gf_deleted_successfully = "File '{file_name}' successfully deleted."
+gf_already_deleted = "File '{file_name}' was already deleted."
+ar_no_valid_commands_entered = "No valid commands entered."
+ar_default_response_text = "The response for this command has not been configured yet. Please edit it."
+ar_default_notification_text = "User $username entered command: $message_text"
+ar_command_deleted_successfully = "Command/set '{command_name}' successfully deleted."
 file_err_not_detected = "❌ File not found in message."
 file_err_must_be_text = "❌ File must be text-based (e.g., .txt, .cfg, .py, .json, .ini, .log)."
 file_err_wrong_format = "❌ Incorrect file format: <b><u>.{actual_ext}</u></b> (expected <b><u>.{expected_ext}</u></b>)."
@@ -668,31 +674,31 @@ products_file_count_error = "⚠️ Error counting products in uploaded file."
 main_config_provide_prompt = "⚙️ Send me the main config file (<code>_main.cfg</code>):"
 ar_config_provide_prompt = "🤖 Send me the auto-responder config file (<code>auto_response.cfg</code>):"
 ad_config_provide_prompt = "📦 Send me the auto-delivery config file (<code>auto_delivery.cfg</code>):"
-# pl_status_active = "Status: Active 🚀" (already defined)
-# pl_status_inactive = "Status: Inactive 💤" (already defined)
-# pl_no_commands = "This plugin has no registered commands." (already defined)
-# pl_delete_handler_failed = "⚠️ Error executing delete handler for plugin '{plugin_name}'. Plugin removed from list, but its data or files might remain. Check logs." (already defined)
-# pl_deleted_successfully = "✅ Plugin '{plugin_name}' successfully deleted. Restart FPCortex for changes to take effect." (already defined)
-# pl_file_delete_error = "⚠️ Failed to delete plugin file '{plugin_path}'. Check permissions and logs." (already defined)
-# proxy_status_enabled = "Enabled" (already defined)
-# proxy_status_disabled = "Disabled" (already defined)
-# proxy_check_status_enabled = "Enabled" (already defined)
-# proxy_check_status_disabled = "Disabled" (already defined)
-# proxy_not_used_currently = "not currently used" (already defined)
-# proxy_not_selected = "not selected" (already defined)
-# proxy_check_interval_info = "Auto-check interval: {interval} min." (already defined)
-# proxy_global_status_header = "Global Proxy Module Status" (already defined)
-# proxy_module_status_label = "Module state:" (already defined)
-# proxy_health_check_label = "Auto-proxy check:" (already defined)
-# proxy_current_in_use_label = "Current proxy in use:" (already defined)
-# proxy_select_error_not_found = "⚠️ Error: this proxy no longer exists in the list." (already defined)
-# proxy_select_error_invalid_format = "⚠️ Error: the selected proxy has an invalid format." (already defined)
-# proxy_selected_and_applied = "✅ Proxy {proxy_str} selected and applied." (already defined)
-# proxy_selected_not_applied = "ℹ️ Proxy {proxy_str} selected. Enable the proxy module in settings for it to be used." (already defined)
-# proxy_deleted_successfully = "✅ Proxy {proxy_str} successfully removed from the list." (already defined)
-# proxy_delete_error_not_found = "⚠️ Error: proxy for deletion not found in the list." (already defined)
-# tmplt_editing_header = "📝 Editing Template" (already defined)
-# tmplt_err_empty_text = "❌ Template text cannot be empty. Please enter text." (already defined)
-# tmplt_deleted_successfully = "✅ Template «{template_text}» successfully deleted." (already defined)
-
+pl_status_active = "Status: Active 🚀"
+pl_status_inactive = "Status: Inactive 💤"
+pl_no_commands = "This plugin has no registered commands."
+pl_delete_handler_failed = "⚠️ Error executing delete handler for plugin '{plugin_name}'. Plugin removed from list, but its data or files might remain. Check logs."
+pl_deleted_successfully = "✅ Plugin '{plugin_name}' successfully deleted. Restart FPCortex for changes to take effect."
+pl_file_delete_error = "⚠️ Failed to delete plugin file '{plugin_path}'. Check permissions and logs."
+proxy_status_enabled = "Enabled"
+proxy_status_disabled = "Disabled"
+proxy_check_status_enabled = "Enabled"
+proxy_check_status_disabled = "Disabled"
+proxy_not_used_currently = "not currently used"
+proxy_not_selected = "not selected"
+proxy_check_interval_info = "Auto-check interval: {interval} min."
+proxy_global_status_header = "Global Proxy Module Status"
+proxy_module_status_label = "Module state:"
+proxy_health_check_label = "Auto-proxy check:"
+proxy_current_in_use_label = "Current proxy in use:"
+proxy_select_error_not_found = "⚠️ Error: this proxy no longer exists in the list."
+proxy_select_error_invalid_format = "⚠️ Error: the selected proxy has an invalid format."
+proxy_selected_and_applied = "✅ Proxy {proxy_str} selected and applied."
+proxy_selected_not_applied = "ℹ️ Proxy {proxy_str} selected. Enable the proxy module in settings for it to be used."
+proxy_deleted_successfully = "✅ Proxy {proxy_str} successfully removed from the list."
+proxy_delete_error_not_found = "⚠️ Error: proxy for deletion not found in the list."
+tmplt_editing_header = "📝 Editing Template"
+tmplt_err_empty_text = "❌ Template text cannot be empty. Please enter text."
+tmplt_deleted_successfully = "✅ Template '{template_text}' successfully deleted."
+no_messages_to_display = "No messages to display"
 # END OF FILE FunPayCortex/locales/en.py

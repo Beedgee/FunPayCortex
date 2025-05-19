@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex # Renamed FPCortex to Cortex
 from telebot.types import CallbackQuery, Message # Message не используется, можно убрать
 import logging # logging не используется, можно убрать
 

@@ -18,7 +18,7 @@ while True:
         break
     except ModuleNotFoundError:
         main(["install", "-U", "bcrypt>=4.2.0"])
-import Utils.cardinal_tools
+import Utils.cortex_tools
 import Utils.config_loader as cfg_loader
 from first_setup import first_setup
 from colorama import Fore, Style
@@ -42,9 +42,9 @@ logo = r"""
 
 """ # ИСПРАВЛЕННЫЙ ЛОГОТИП FPCortex
 
-VERSION = "0.1.15.20"
+VERSION = "0.1.15.21"
 
-Utils.cardinal_tools.set_console_title(f"FunPay Cortex v{VERSION}")
+Utils.cortex_tools.set_console_title(f"FunPay Cortex v{VERSION}")
 
 if getattr(sys, 'frozen', False):
     os.chdir(os.path.dirname(sys.executable))

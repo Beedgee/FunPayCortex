@@ -8,7 +8,7 @@ import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex # Renamed FPCortex to Cortex
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 import configparser
@@ -17,7 +17,7 @@ import os.path
 import json
 import time
 
-import Utils.cardinal_tools # Renamed from Utils to Utils
+import Utils.cortex_tools # Renamed from Utils to Utils
 from tg_bot import CBT
 from locales.localizer import Localizer # Добавляем импорт Localizer
 
@@ -306,7 +306,7 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
         file_info_text = f"<code>{escape(full_file_path)}</code>"
         if os.path.exists(full_file_path):
             try:
-                count = Utils.cardinal_tools.count_products(full_file_path)
+                count = Utils.cortex_tools.count_products(full_file_path)
                 products_amount_text = f"<code>{count}</code>"
             except Exception:
                 products_amount_text = f"<code>⚠️</code> ({_('gf_count_error', language=localizer.current_language)})" # Ключ для "ошибка подсчета"

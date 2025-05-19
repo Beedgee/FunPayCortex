@@ -11,7 +11,7 @@ import os
 from Utils.exceptions import (ParamNotFoundError, EmptyValueError, ValueNotValidError, SectionNotFoundError,
                               ConfigParseError, ProductsFileNotFoundError, NoProductVarError,
                               SubCommandAlreadyExists, DuplicateSectionErrorWrapper)
-from Utils.cardinal_tools import hash_password
+from Utils.cortex_tools import hash_password
 
 
 def check_param(param_name: str, section: SectionProxy, valid_values: list[str | None] | None = None,

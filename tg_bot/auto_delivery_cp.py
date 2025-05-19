@@ -9,13 +9,13 @@ import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex # Renamed FPCortex to Cortex
 
 from tg_bot import utils, keyboards as kb, CBT, MENU_CFG
 from tg_bot.static_keyboards import CLEAR_STATE_BTN
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery
 
-from Utils import cardinal_tools # Renamed from Utils
+from Utils import cortex_tools # Renamed from Utils
 from locales.localizer import Localizer
 
 import itertools
@@ -462,7 +462,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         
         products_amount_str = "⚠️" # По умолчанию, если ошибка
         try:
-            products_amount_str = str(cardinal_tools.count_products(full_selected_file_path))
+            products_amount_str = str(cortex_tools.count_products(full_selected_file_path))
         except Exception:
             pass # products_amount_str останется "⚠️"
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex # Renamed FPCortex to Cortex
 
 from tg_bot import utils, keyboards, CBT, MENU_CFG
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery

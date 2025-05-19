@@ -9,7 +9,7 @@ from configparser import ConfigParser
 import time
 import telebot
 from colorama import Fore, Style
-from Utils.cardinal_tools import validate_proxy, hash_password
+from Utils.cortex_tools import validate_proxy, hash_password
 
 default_config = {
     "FunPay": {

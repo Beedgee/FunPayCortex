@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import telebot.apihelper
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex # Renamed FPCortex to Cortex
 from tg_bot import keyboards as kb, CBT
 from telebot.types import CallbackQuery
 import logging

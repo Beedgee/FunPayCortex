@@ -9,14 +9,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed import
+    from cortex import Cortex # Renamed import
 
 from FunPayAPI.types import OrderShortcut, Order, Currency # Added Currency import
 from FunPayAPI import exceptions, utils as fp_utils
 from FunPayAPI.updater.events import *
 
 from tg_bot import utils, keyboards
-from Utils import cardinal_tools
+from Utils import cortex_tools
 from locales.localizer import Localizer
 from threading import Thread
 import configparser
@@ -67,7 +67,7 @@ def save_init_chats_handler(c: Cortex, e: InitialChatEvent): # Renamed type hint
     """
     if c.MAIN_CFG["Greetings"].getboolean("sendGreetings") and e.chat.id not in c.old_users:
         c.old_users[e.chat.id] = int(time.time())
-        cardinal_tools.cache_old_users(c.old_users)
+        cortex_tools.cache_old_users(c.old_users)
 
 
 # NEW MESSAGE / LAST CHAT MESSAGE CHANGED
@@ -129,7 +129,7 @@ def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEven
         return
 
     logger.info(_("log_sending_greetings", chat_name, chat_id))
-    text = cardinal_tools.format_msg_text(c.MAIN_CFG["Greetings"]["greetingsText"], obj)
+    text = cortex_tools.format_msg_text(c.MAIN_CFG["Greetings"]["greetingsText"], obj)
     Thread(target=c.send_message, args=(chat_id, text, chat_name), daemon=True).start()
 
 
@@ -147,7 +147,7 @@ def add_old_user_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedE
     if not c.MAIN_CFG["Greetings"].getboolean("sendGreetings") or mtype == MessageTypes.DEAR_VENDORS:
         return
     c.old_users[chat_id] = int(time.time())
-    cardinal_tools.cache_old_users(c.old_users)
+    cortex_tools.cache_old_users(c.old_users)
 
 
 def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
@@ -170,7 +170,7 @@ def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChanged
         return
 
     logger.info(_("log_new_cmd", command, chat_name, chat_id))
-    response_text = cardinal_tools.format_msg_text(c.AR_CFG[command]["response"], obj)
+    response_text = cortex_tools.format_msg_text(c.AR_CFG[command]["response"], obj)
     Thread(target=c.send_message, args=(chat_id, response_text, chat_name), daemon=True).start()
 
 
@@ -347,7 +347,7 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
                         text_ = text_[::-1].replace("\n", " ", text_.count("\n") - 9)[::-1]
                     return text_
 
-                reply_text = cardinal_tools.format_order_text(c.MAIN_CFG["ReviewReply"].get(text_key), order)
+                reply_text = cortex_tools.format_order_text(c.MAIN_CFG["ReviewReply"].get(text_key), order)
                 reply_text = format_text4review(reply_text)
                 c.account.send_review(order.id, reply_text)
             except:
@@ -382,7 +382,7 @@ def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMe
     if not c.AR_CFG[command].get("notificationText"):
         text = f"🧑‍💻 Пользователь <b><i>{username}</i></b> ввел команду <code>{utils.escape(command)}</code>."  # locale
     else:
-        text = cardinal_tools.format_msg_text(c.AR_CFG[command]["notificationText"], obj)
+        text = cortex_tools.format_msg_text(c.AR_CFG[command]["notificationText"], obj)
 
     Thread(target=c.telegram.send_notification, args=(text, keyboards.reply(chat_id, chat_name),
                                                       utils.NotificationTypes.command), daemon=True).start()
@@ -460,7 +460,7 @@ def check_products_amount(config_obj: configparser.SectionProxy) -> int:
     file_name = config_obj.get("productsFileName")
     if not file_name:
         return 1
-    return cardinal_tools.count_products(f"storage/products/{file_name}")
+    return cortex_tools.count_products(f"storage/products/{file_name}")
 
 
 def update_current_lots_handler(c: Cortex, e: OrdersListChangedEvent): # Renamed type hint
@@ -577,14 +577,14 @@ def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args): # R
 def deliver_goods(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
     chat_id = c.account.get_chat_by_name(e.order.buyer_username).id
     cfg_obj = getattr(e, "config_section_obj")
-    delivery_text = cardinal_tools.format_order_text(cfg_obj["response"], e.order)
+    delivery_text = cortex_tools.format_order_text(cfg_obj["response"], e.order)
 
     amount, goods_left, products = 1, -1, []
     try:
         if file_name := cfg_obj.get("productsFileName"):
             if c.multidelivery_enabled and not cfg_obj.getboolean("disableMultiDelivery"):
                 amount = e.order.amount if e.order.amount else 1
-            products, goods_left = cardinal_tools.get_products(f"storage/products/{file_name}", amount)
+            products, goods_left = cortex_tools.get_products(f"storage/products/{file_name}", amount)
             delivery_text = delivery_text.replace("$product", "\n".join(products).replace("\\n", "\n"))
     except Exception as exc:
         logger.error(
@@ -601,7 +601,7 @@ def deliver_goods(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
         setattr(e, "error", 1)
         setattr(e, "error_text", f"Не удалось отправить сообщение с товаром для заказа {e.order.id}.")  # locale
         if file_name and products:
-            cardinal_tools.add_products(f"storage/products/{file_name}", products, at_zero_position=True)
+            cortex_tools.add_products(f"storage/products/{file_name}", products, at_zero_position=True)
     else:
         logger.info(f"Товар для заказа {e.order.id} выдан.")  # locale
         setattr(e, "delivered", True)
@@ -777,7 +777,7 @@ def send_thank_u_message_handler(c: Cortex, e: OrderStatusChangedEvent): # Renam
     if not c.MAIN_CFG["OrderConfirm"].getboolean("sendReply") or e.order.status is not types.OrderStatuses.CLOSED:
         return
 
-    text = cardinal_tools.format_order_text(c.MAIN_CFG["OrderConfirm"]["replyText"], e.order)
+    text = cortex_tools.format_order_text(c.MAIN_CFG["OrderConfirm"]["replyText"], e.order)
     chat = c.account.get_chat_by_name(e.order.buyer_username, True)
     logger.info(f"Пользователь $YELLOW{e.order.buyer_username}$RESET подтвердил выполнение заказа "  # locale
                 f"$YELLOW{e.order.id}.$RESET")  # locale

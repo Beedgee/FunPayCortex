@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cortex
+    from cortex import Cortex
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 
@@ -436,7 +436,7 @@ def products_files_list(offset: int) -> K:
     else:
         for index, name in enumerate(files_on_page):
             try:
-                amount = Utils.cardinal_tools.count_products(os.path.join(products_dir, name))
+                amount = Utils.cortex_tools.count_products(os.path.join(products_dir, name))
             except Exception:
                 amount = "⚠️" 
             keyboard.add(B(f"📄 {name} ({amount} {_('gl_pcs')})", None, f"{CBT.EDIT_PRODUCTS_FILE}:{all_files.index(name)}:{offset}"))

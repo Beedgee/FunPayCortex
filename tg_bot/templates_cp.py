@@ -5,10 +5,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from Utils.cardinal_tools import safe_text # Используется для безопасной замены $username
+from Utils.cortex_tools import safe_text # Используется для безопасной замены $username
 
 if TYPE_CHECKING:
-    from cardinal import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex # Renamed FPCortex to Cortex
 
 from tg_bot import utils, keyboards, CBT
 from tg_bot.static_keyboards import CLEAR_STATE_BTN
