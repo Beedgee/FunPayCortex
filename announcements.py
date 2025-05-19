@@ -4,213 +4,161 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cardinal import Cardinal # Will be renamed later
+    from cardinal import Cortex # Renamed FPCortex to Cortex
 
 from tg_bot.utils import NotificationTypes
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 from locales.localizer import Localizer
 from threading import Thread
 from logging import getLogger
-import requests
-import json
-import os
+import requests # Оставим импорт, если вдруг понадобится для другого функционала
+import json     # Оставим импорт
+import os       # Оставим импорт
 import time
 
-logger = getLogger("FPC.announcements") # Keep logger name?
+logger = getLogger("FPC.announcements")
 localizer = Localizer()
 _ = localizer.translate
 
+# REQUESTS_DELAY и LAST_TAG больше не нужны, если мы не делаем запросы
+# REQUESTS_DELAY = 600
+# LAST_TAG = get_last_tag() # get_last_tag и save_last_tag тоже больше не нужны в текущей реализации
 
-def get_last_tag() -> str | None:
-    """
-    Загружает тег последнего объявления из кэша.
-    (Функция больше не используется, т.к. объявления отключены)
+# def get_last_tag() -> str | None:
+#     """
+#     Загружает тег последнего объявления из кэша.
+#     (Функция больше не используется, т.к. объявления отключены)
+#     """
+#     # ... (код был здесь) ...
+#     return None
 
-    :return: тег последнего объявления или None, если его нет.
-    """
-    if not os.path.exists("storage/cache/announcement_tag.txt"):
-        return None
-    with open("storage/cache/announcement_tag.txt", "r", encoding="UTF-8") as f:
-        data = f.read()
-    return data
-
-
-REQUESTS_DELAY = 600
-# LAST_TAG = get_last_tag() # Больше не нужно
-
-
-def save_last_tag():
-    """
-    Сохраняет тег последнего объявления в кэш.
-    (Функция больше не используется)
-    """
-    # global LAST_TAG
-    # if not os.path.exists("storage/cache"):
-    #     os.makedirs("storage/cache")
-    # with open("storage/cache/announcement_tag.txt", "w", encoding="UTF-8") as f:
-    #     f.write(LAST_TAG)
-    pass
+# def save_last_tag():
+#     """
+#     Сохраняет тег последнего объявления в кэш.
+#     (Функция больше не используется)
+#     """
+#     # ... (код был здесь) ...
+#     pass
 
 
 def get_announcement(ignore_last_tag: bool = False) -> dict | None:
     """
-    Получает информацию об объявлении. (МОДИФИЦИРОВАНО: Всегда возвращает None)
-    Если тэг объявления совпадает с сохраненным тегом и ignore_last_tag ложь, возвращает None.
-    Если произошла ошибка при получении объявлении, возвращает None.
+    Получает информацию об объявлении с GitHub Gist.
+    МОДИФИЦИРОВАНО: Всегда возвращает None, чтобы отключить внешние объявления.
+    Если ты захочешь использовать свою систему объявлений, тебе нужно будет
+    изменить эту функцию для получения данных из твоего источника.
 
-    :return: None (объявления отключены).
+    :return: None (объявления из внешнего источника отключены).
     """
-    logger.debug("Announcements check skipped (disabled).")
-    return None # Всегда возвращаем None
+    logger.debug("Проверка внешних объявлений отключена. get_announcement всегда возвращает None.")
+    return None # <--- ОСНОВНОЕ ИЗМЕНЕНИЕ: всегда возвращаем None
 
+# Функции download_photo, get_notification_type, get_photo, get_text, get_pin, get_keyboard
+# остаются, так как они могут быть полезны, если ты решишь реализовать свою систему
+# объявлений через этот модуль, изменив get_announcement.
 
 def download_photo(url: str) -> bytes | None:
     """
     Загружает фото по URL.
-    (Функция больше не используется)
-
-    :param url: URL фотографии.
-
-    :return: фотографию в виде массива байтов.
     """
     try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            return None
-    except:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка загрузки фото {url}: {e}")
         return None
-    return response.content
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при загрузке фото {url}: {e}")
+        return None
 
-
-# Разбор данных объявления (эти функции больше не будут вызываться)
 def get_notification_type(data: dict) -> NotificationTypes:
-    """
-    Находит данные о типе объявления.
-    0 - реклама.
-    1 - объявление.
-    Другое - критическое объявление.
-
-    :param data: данные объявления.
-
-    :return: тип уведомления.
-    """
     types = {
         0: NotificationTypes.ad,
         1: NotificationTypes.announcement,
         2: NotificationTypes.important_announcement
     }
-    return types[data.get("type")] if data.get("type") in types else NotificationTypes.critical
-
+    return types.get(data.get("type"), NotificationTypes.critical)
 
 def get_photo(data: dict) -> bytes | None:
-    """
-    Загружает фотографию по ссылке, если она есть в данных об объявлении.
-
-    :param data: данные объявления.
-
-    :return: фотографию в виде массива байтов или None, если ссылка на фото не найдена или загрузка не удалась.
-    """
-    if not (photo := data.get("ph")):
+    if not (photo_url := data.get("ph")):
         return None
-    return download_photo(u"{}".format(photo))
-
+    return download_photo(str(photo_url))
 
 def get_text(data: dict) -> str | None:
-    """
-    Находит данные о тексте объявления.
-
-    :param data: данные объявления.
-
-    :return: текст объявления или None, если он не найден.
-    """
-    if not (text := data.get("text")):
+    if not (text_content := data.get("text")):
         return None
-    return u"{}".format(text)
-
+    return str(text_content)
 
 def get_pin(data: dict) -> bool:
-    """
-    Получает информацию о том, нужно ли закреплять объявление.
-
-    :param data: данные объявления.
-
-    :return: True / False.
-    """
     return bool(data.get("pin"))
 
-
 def get_keyboard(data: dict) -> K | None:
-    """
-    Получает информацию о клавиатуре и генерирует ее.
-    Пример клавиатуры:
-
-    :param data: данные объявления.
-
-    :return: объект клавиатуры или None, если данные о ней не найдены.
-    """
     if not (kb_data := data.get("kb")):
         return None
-
     kb = K()
     try:
-        for row in kb_data:
-            buttons = []
-            for btn in row:
-                btn_args = {u"{}".format(i): u"{}".format(btn[i]) for i in btn}
-                buttons.append(B(**btn_args))
-            kb.row(*buttons)
-    except:
+        for row_data in kb_data:
+            buttons_in_row = []
+            for btn_dict in row_data:
+                btn_args_safe = {str(key): str(value) for key, value in btn_dict.items()}
+                buttons_in_row.append(B(**btn_args_safe))
+            if buttons_in_row:
+                kb.row(*buttons_in_row)
+    except Exception as e:
+        logger.error(f"Ошибка при создании клавиатуры для объявления: {e}")
         return None
-    return kb
+    return kb if kb.keyboard else None
 
 
-def announcements_loop_iteration(cortex_instance: Cardinal, ignore_last_tag: bool = False): # Renamed var
-    # global LAST_TAG # Not needed
-    # Эта функция больше не будет делать ничего полезного, т.к. get_announcement всегда None
-    if not (data := get_announcement(ignore_last_tag=ignore_last_tag)):
-        # time.sleep(REQUESTS_DELAY) # No need to sleep if we don't fetch
+def announcements_loop_iteration(cortex_instance: Cortex, ignore_last_tag: bool = False):
+    # Так как get_announcement всегда возвращает None, эта функция ничего не будет делать
+    announcement_data = get_announcement(ignore_last_tag=ignore_last_tag)
+    if not announcement_data:
         return
 
-    # The code below will not be reached because get_announcement returns None
-    # if not ignore_last_tag:
-    #     LAST_TAG = data.get("tag")
+    # Код ниже не будет выполнен
+    # new_tag = announcement_data.get("tag")
+    # if not ignore_last_tag and (new_tag and new_tag != LAST_TAG or not LAST_TAG):
+    #     LAST_TAG = new_tag
     #     save_last_tag()
-    # text = get_text(data)
-    # photo = get_photo(data)
-    # notification_type = get_notification_type(data)
-    # keyboard = get_keyboard(data)
-    # pin = get_pin(data)
+    
+    # text_content = get_text(announcement_data)
+    # photo_content = get_photo(announcement_data)
+    # notification_type_enum = get_notification_type(announcement_data)
+    # keyboard_markup = get_keyboard(announcement_data)
+    # should_pin = get_pin(announcement_data)
 
-    # if text or photo:
+    # if text_content or photo_content:
     #     Thread(target=cortex_instance.telegram.send_notification,
-    #            args=(text,),
-    #            kwargs={"photo": photo, 'notification_type': notification_type, 'keyboard': keyboard,
-    #                    'pin': pin},
+    #            args=(text_content,),
+    #            kwargs={"photo": photo_content, 
+    #                    'notification_type': notification_type_enum, 
+    #                    'keyboard': keyboard_markup,
+    #                    'pin': should_pin},
     #            daemon=True).start()
 
 
-def announcements_loop(cortex_instance: Cardinal): # Renamed var
+def announcements_loop(cortex_instance: Cortex):
     """
-    Бесконечный цикл получения объявлений. (ОТКЛЮЧЕН)
+    Бесконечный цикл получения объявлений. (Эффективно неактивен из-за изменений в get_announcement)
     """
     if not cortex_instance.telegram:
-        logger.info("Announcements loop disabled (Telegram not configured).")
+        logger.info("Цикл объявлений не запущен (Telegram не настроен).")
         return
 
-    logger.info("Announcements loop started (effectively disabled).")
+    logger.info("Цикл проверки объявлений запущен (внешние объявления отключены).")
     while True:
         try:
-            # Эта итерация ничего не будет делать
             announcements_loop_iteration(cortex_instance, ignore_last_tag=False)
-        except Exception as e: # Catch potential errors even if disabled
-             logger.error(f"Error in disabled announcements loop: {e}")
-             logger.debug("TRACEBACK", exc_info=True)
-        # Sleep for a longer interval since it's disabled
-        time.sleep(3600) # Sleep for an hour
+        except Exception as e:
+            logger.error(f"Ошибка в (отключенном) цикле объявлений: {e}")
+            logger.debug("TRACEBACK", exc_info=True)
+        # Можно увеличить интервал, так как активных действий не происходит
+        time.sleep(3600) # Проверять раз в час, на всякий случай
 
 
-def main(cortex_instance: Cardinal): # Renamed var
-    # Запускаем цикл в отдельном потоке, но он будет неактивен
+def main(cortex_instance: Cortex):
     Thread(target=announcements_loop, args=(cortex_instance,), daemon=True).start()
 
 

@@ -27,7 +27,7 @@ import os
 from pip._internal.cli.main import main
 import FunPayAPI
 import handlers
-# import announcements # Disabled announcements
+import announcements # Re-enabled announcements
 from locales.localizer import Localizer
 from FunPayAPI import utils as fp_utils
 from Utils import cardinal_tools # Keep filename for now
@@ -238,7 +238,11 @@ class Cortex(object): # Renamed class
         """
         logger.info(_("crd_getting_profile_data"))
         # Получаем категории аккаунта.
-        while attempts or infinite_polling:
+        current_attempts = 0
+        max_attempts = attempts if not infinite_polling else float('inf')
+
+
+        while current_attempts < max_attempts:
             try:
                 profile = self.account.get_user(self.account.id)
                 break
@@ -250,12 +254,22 @@ class Cortex(object): # Renamed class
             except:
                 logger.error(_("crd_profile_get_unexpected_err"))
                 logger.debug("TRACEBACK", exc_info=True)
-            attempts -= 1
+            
+            current_attempts += 1
+            if current_attempts >= max_attempts and not infinite_polling:
+                 logger.error(_("crd_profile_get_too_many_attempts_err", attempts))
+                 return False
+            
             logger.warning(_("crd_try_again_in_n_secs", 2))
             time.sleep(2)
-        else:
-            logger.error(_("crd_profile_get_too_many_attempts_err", attempts))
+        else: # Этот блок выполнится, если цикл завершился из-за attempts < max_attempts (т.е. не было break)
+            if not infinite_polling: # Только если не бесконечный опрос, это будет ошибкой
+                logger.error(_("crd_profile_get_too_many_attempts_err", attempts))
+                return False
+            # Если infinite_polling и цикл завершился (что не должно произойти без break), это ошибка
+            logger.critical("Критическая ошибка в логике __update_profile с infinite_polling.")
             return False
+
 
         if update_main_profile:
             self.profile = profile
@@ -278,23 +292,24 @@ class Cortex(object): # Renamed class
     def get_balance(self, attempts: int = 3) -> FunPayAPI.types.Balance:
         subcategories = self.account.get_sorted_subcategories()[FunPayAPI.enums.SubCategoryTypes.COMMON]
         lots = []
-        # Need at least one lot to get balance, try finding one
+        
         if not subcategories:
-             raise Exception("No common subcategories found to determine balance.") # Or handle differently
+             raise Exception("Нет общих подкатегорий для определения баланса.")
 
-        while attempts:
-            attempts -= 1
+        current_attempts = 0
+        while current_attempts < attempts:
             try:
                 subcat_id = random.choice(list(subcategories.keys()))
                 lots = self.account.get_subcategory_public_lots(FunPayAPI.enums.SubCategoryTypes.COMMON, subcat_id)
-                if lots: # Found a lot
+                if lots:
                     break
             except Exception as e:
-                 logger.warning(f"Error getting lots for balance check (SubCat ID: {subcat_id}): {e}")
-                 time.sleep(1) # Wait before retrying
-
+                 logger.warning(f"Ошибка получения лотов для проверки баланса (ПодКат ID: {subcat_id}): {e}")
+                 time.sleep(1) 
+            current_attempts +=1
+            
         if not lots:
-             raise Exception("Could not find any public lots to determine balance after multiple attempts.")
+             raise Exception(f"Не удалось найти публичные лоты для определения баланса после {attempts} попыток.")
 
         balance = self.account.get_balance(random.choice(lots).id)
         return balance
@@ -306,109 +321,161 @@ class Cortex(object): # Renamed class
 
         :return: предположительное время, когда нужно снова запустить данную функцию.
         """
-        # Время следующего вызова функции (по умолчанию - бесконечность).
         next_call = float("inf")
 
-        for subcat in sorted(list(self.profile.get_sorted_lots(2).keys()), key=lambda x: x.category.position):
-            if subcat.type is SubCategoryTypes.CURRENCY:
-                continue
-            # Если id категории текущей подкатегории уже находится в self.game_ids, но время поднятия подкатегорий
-            # данной категории еще не настало - пропускам эту подкатегорию.
-            if (saved_time := self.raise_time.get(subcat.category.id)) and saved_time > int(time.time()):
-                # Если записанное в self.game_ids время больше текущего времени
-                # обновляем время next_call'а на записанное время.
-                next_call = saved_time if saved_time < next_call else next_call
+        # Сортируем категории по их позиции для консистентного порядка поднятия
+        # Сначала создаем список уникальных объектов категорий
+        unique_categories = []
+        seen_category_ids = set()
+        for subcat in self.profile.get_sorted_lots(2).keys():
+            if subcat.category.id not in seen_category_ids:
+                unique_categories.append(subcat.category)
+                seen_category_ids.add(subcat.category.id)
+        
+        sorted_categories_to_raise = sorted(unique_categories, key=lambda cat: cat.position)
+
+
+        for category_obj in sorted_categories_to_raise:
+            # Пропускаем, если время поднятия для этой категории еще не настало
+            if (saved_raise_time := self.raise_time.get(category_obj.id)) and saved_raise_time > int(time.time()):
+                next_call = min(next_call, saved_raise_time)
                 continue
 
-            # В любом другом случае пытаемся поднять лоты всех категорий, относящихся к игре
+            # Проверяем, есть ли вообще COMMON подкатегории у этой игры в профиле пользователя
+            # Это важно, так как raise_lots ожидает хотя бы одну подкатегорию
+            common_subcats_for_this_game = [
+                sc for sc_list in self.profile.get_sorted_lots(2).values() 
+                for sc in (sc_list.keys() if isinstance(sc_list, dict) else [sc_list]) # sc_list может быть словарем лотов или одним лотом
+                if isinstance(sc, FunPayAPI.types.SubCategory) and sc.type == SubCategoryTypes.COMMON and sc.category.id == category_obj.id
+            ]
+            # Уникализируем подкатегории, если вдруг дубликаты из-за структуры get_sorted_lots(2)
+            unique_common_subcats = list(set(sc.id for sc in common_subcats_for_this_game))
+
+
+            if not unique_common_subcats:
+                logger.debug(f"У категории '{category_obj.name}' нет активных COMMON лотов для поднятия, пропускаем.")
+                self.raise_time[category_obj.id] = int(time.time()) + 7200 # Ставим стандартный кулдаун, чтобы не проверять часто
+                next_call = min(next_call, self.raise_time[category_obj.id])
+                continue
+
+
             raise_ok = False
-            error_text = ""
-            time_delta = ""
+            error_text_msg = "" # Переименовал, чтобы не конфликтовать с модулем
+            time_delta_str = "" # Переименовал
+
+            # Пробуем поднять лоты
             try:
-                time.sleep(1)
-                self.account.raise_lots(subcat.category.id)
-                logger.info(_("crd_lots_raised", subcat.category.name))
+                time.sleep(random.uniform(0.5, 1.5)) # Небольшая случайная задержка
+                
+                # Передаем только ID тех подкатегорий, которые есть у пользователя в данной игре
+                self.account.raise_lots(category_obj.id, subcategories=unique_common_subcats)
+                
+                logger.info(_("crd_lots_raised", category_obj.name))
                 raise_ok = True
-                last_time = self.raised_time.get(subcat.category.id)
-                self.raised_time[subcat.category.id] = new_time = int(time.time())  # locale
-                time_delta = "" if not last_time else f" Последнее поднятие: {cardinal_tools.time_to_str(new_time - last_time)} назад."
-                time.sleep(1)
-                # Try raising again immediately (original logic, might not be necessary?)
-                # self.account.raise_lots(subcat.category.id) # Commented out the second raise attempt
+                last_raised_timestamp = self.raised_time.get(category_obj.id)
+                current_timestamp = int(time.time())
+                self.raised_time[category_obj.id] = current_timestamp
+                
+                if last_raised_timestamp:
+                    time_delta_str = f" Последнее поднятие: {cardinal_tools.time_to_str(current_timestamp - last_raised_timestamp)} назад."
+                
+                # Устанавливаем следующий таймер поднятия (например, через 2 часа)
+                # Можно сделать это настраиваемым
+                next_raise_attempt_time = current_timestamp + 7200 # 2 часа в секундах
+                self.raise_time[category_obj.id] = next_raise_attempt_time
+                next_call = min(next_call, next_raise_attempt_time)
+
             except FunPayAPI.exceptions.RaiseError as e:
-                if e.error_message is not None:
-                    error_text = e.error_message
-                if e.wait_time is not None:
-                    logger.warning(_("crd_raise_time_err", subcat.category.name, error_text,
-                                     cardinal_tools.time_to_str(e.wait_time)))
-                    next_time = int(time.time()) + e.wait_time
-                else:
-                    logger.error(_("crd_raise_unexpected_err", subcat.category.name))
-                    time.sleep(10)
-                    next_time = int(time.time()) + 1
-                self.raise_time[subcat.category.id] = next_time
-                next_call = next_time if next_time < next_call else next_call
-                if not raise_ok:
-                    continue
+                error_text_msg = e.error_message if e.error_message else "Неизвестная ошибка FunPay."
+                wait_duration = e.wait_time if e.wait_time is not None else 60 # По умолчанию 60 секунд, если время не указано
+                
+                logger.warning(_("crd_raise_time_err", category_obj.name, error_text_msg,
+                                 cardinal_tools.time_to_str(wait_duration)))
+                next_raise_attempt_time = int(time.time()) + wait_duration
+                
+                self.raise_time[category_obj.id] = next_raise_attempt_time
+                next_call = min(next_call, next_raise_attempt_time)
+                # Не продолжаем, если была ошибка FunPay RaiseError
+            
             except Exception as e:
-                t = 10
+                default_retry_delay = 60
+                error_log_message = _("crd_raise_unexpected_err", category_obj.name)
+                
                 if isinstance(e, FunPayAPI.exceptions.RequestFailedError) and e.status_code in (503, 403, 429):
-                    logger.warning(_("crd_raise_status_code_err", e.status_code, subcat.category.name))
-                    t = 60
-                else:
-                    logger.error(_("crd_raise_unexpected_err", subcat.category.name))
+                    error_log_message = _("crd_raise_status_code_err", e.status_code, category_obj.name)
+                    default_retry_delay = 120 # Увеличиваем задержку для серьезных ошибок
+                
+                logger.error(error_log_message)
                 logger.debug("TRACEBACK", exc_info=True)
-                time.sleep(t)
-                next_time = int(time.time()) + 1
-                next_call = next_time if next_time < next_call else next_call
-                if not raise_ok:
-                    continue
-            self.run_handlers(self.post_lots_raise_handlers, (self, subcat.category, error_text + time_delta))
-        return next_call if next_call < float("inf") else 10
+                time.sleep(random.uniform(default_retry_delay / 2, default_retry_delay)) # Случайная задержка перед следующей попыткой
+                
+                next_raise_attempt_time = int(time.time()) + 1 # Пробуем скоро, но не сразу
+                next_call = min(next_call, next_raise_attempt_time)
+            
+            # Вызываем хендлеры только если было успешное поднятие или ошибка RaiseError (чтобы обработать wait_time)
+            if raise_ok or isinstance(e, FunPayAPI.exceptions.RaiseError):
+                 self.run_handlers(self.post_lots_raise_handlers, (self, category_obj, error_text_msg + time_delta_str))
+
+        return next_call if next_call < float("inf") else 300 # Если нечего поднимать, проверяем через 5 минут
 
     def get_order_from_object(self, obj: types.OrderShortcut | types.Message | types.ChatShortcut,
-                              order_id: str | None = None) -> None | types.Order:
+                              order_id_str: str | None = None) -> None | types.Order: # Renamed order_id to order_id_str
         if obj._order_attempt_error:
-            return
-        if obj._order_attempt_made:
-            while obj._order is None and not obj._order_attempt_error:
-                time.sleep(0.1)
+            return None # Возвращаем None если уже была ошибка
+        if obj._order_attempt_made and obj._order is not None: # Если уже успешно получили
             return obj._order
-        obj._order_attempt_made = True
-        if type(obj) not in (types.Message, types.ChatShortcut, types.OrderShortcut):
+        if obj._order_attempt_made and obj._order is None: # Если пытались, но не получили (например, в процессе)
+            # Ждем немного, если другой поток уже получает этот ордер
+            wait_count = 0
+            while obj._order is None and not obj._order_attempt_error and wait_count < 50: # Таймаут ожидания 5 сек
+                time.sleep(0.1)
+                wait_count +=1
+            return obj._order # Возвращаем что есть (может быть None если таймаут или ошибка)
+
+        obj._order_attempt_made = True # Помечаем, что попытка началась
+        
+        if not isinstance(obj, (types.Message, types.ChatShortcut, types.OrderShortcut)):
             obj._order_attempt_error = True
-            raise Exception("Неправильный тип объекта")
-        if not order_id:
+            logger.error(f"Неправильный тип объекта для get_order_from_object: {type(obj)}")
+            return None
+
+        final_order_id = order_id_str
+        if not final_order_id:
             if isinstance(obj, types.OrderShortcut):
-                order_id = obj.id
-                if order_id == "ADTEST":
+                final_order_id = obj.id
+                if final_order_id == "ADTEST": # Тестовый заказ, не запрашиваем
                     obj._order_attempt_error = True
-                    return
-            elif isinstance(obj, types.Message) or isinstance(obj, types.ChatShortcut):
-                order_id = fp_utils.RegularExpressions().ORDER_ID.findall(str(obj))
-                if not order_id:
+                    return None
+            elif isinstance(obj, (types.Message, types.ChatShortcut)):
+                # Ищем ID заказа в тексте сообщения
+                match = fp_utils.RegularExpressions().ORDER_ID.search(str(obj))
+                if not match:
                     obj._order_attempt_error = True
-                    return
-                order_id = order_id[0][1:]
-        for i in range(2, -1, -1):
+                    return None
+                final_order_id = match.group(0)[1:] # Убираем '#'
+
+        if not final_order_id: # Если ID заказа все еще не найден
+            obj._order_attempt_error = True
+            return None
+
+        for attempt_num in range(3, 0, -1): # 3 попытки
             try:
-                obj._order = self.account.get_order(order_id)
-                logger.info(f"Получил информацию о заказе #{obj._order.id}")  # locale
-                return obj._order
-            except:
-                logger.warning(f"Произошла ошибка при получении заказа #{order_id}. Осталось {i} попыток.")  # locale
+                fetched_order = self.account.get_order(final_order_id)
+                obj._order = fetched_order # Сохраняем полученный ордер
+                logger.info(f"Получена информация о заказе #{final_order_id}")
+                return fetched_order
+            except Exception as e:
+                logger.warning(f"Ошибка при получении заказа #{final_order_id} (попытка {4-attempt_num}): {e}")
                 logger.debug("TRACEBACK", exc_info=True)
-                time.sleep(1)
-        obj._order_attempt_error = True
+                if attempt_num > 1: time.sleep(random.uniform(0.5, 1.5)) # Пауза перед повтором
+        
+        obj._order_attempt_error = True # Все попытки исчерпаны
+        return None
 
     @staticmethod
     def split_text(text: str) -> list[str]:
         """
         Разбивает текст на суб-тексты по 20 строк.
-
-        :param text: исходный текст.
-
-        :return: список из суб-текстов.
         """
         output = []
         lines = text.split("\n")
@@ -525,34 +592,87 @@ class Cortex(object): # Renamed class
         """
         assert base_currency != types.Currency.UNKNOWN and target_currency != types.Currency.UNKNOWN
         if base_currency == target_currency:
-            return 1
-        rate, t = self.__exchange_rates.get((base_currency, target_currency), (None, 0))
-        if t and time.time() < t + min_interval:
-            return rate
-        for i in range(2, -1, -1):
+            return 1.0 # Возвращаем float для консистентности
+            
+        # Проверяем кэш сначала для прямого курса, потом для обратного
+        cached_rate, cache_time = self.__exchange_rates.get((base_currency, target_currency), (None, 0))
+        if cached_rate is not None and time.time() < cache_time + min_interval:
+            return cached_rate
+        
+        cached_rate_reverse, cache_time_reverse = self.__exchange_rates.get((target_currency, base_currency), (None, 0))
+        if cached_rate_reverse is not None and time.time() < cache_time_reverse + min_interval:
+            return 1.0 / cached_rate_reverse
+
+
+        # Если в кэше нет или устарело, запрашиваем
+        for attempt in range(3): # 3 попытки
             try:
-                exchange_rate1, currency1 = self.account.get_exchange_rate(base_currency)
-                self.__exchange_rates[(currency1, base_currency)] = (exchange_rate1, time.time())
-                self.__exchange_rates[(base_currency, currency1)] = (1 / exchange_rate1, time.time())
+                # Получаем курс относительно текущей валюты аккаунта до base_currency
+                rate_to_base, actual_acc_currency_after_base_req = self.account.get_exchange_rate(base_currency)
+                # Сохраняем оба курса (прямой и обратный)
+                current_time = time.time()
+                self.__exchange_rates[(actual_acc_currency_after_base_req, base_currency)] = (rate_to_base, current_time)
+                if rate_to_base != 0: self.__exchange_rates[(base_currency, actual_acc_currency_after_base_req)] = (1.0 / rate_to_base, current_time)
 
-                time.sleep(1)
+                time.sleep(random.uniform(0.5, 1.0)) # Небольшая задержка
 
-                exchange_rate2, currency2 = self.account.get_exchange_rate(target_currency)
-                self.__exchange_rates[(currency2, target_currency)] = (exchange_rate2, time.time())
-                self.__exchange_rates[(target_currency, currency2)] = (1 / exchange_rate2, time.time())
+                # Получаем курс относительно текущей валюты аккаунта (которая могла измениться) до target_currency
+                rate_to_target, actual_acc_currency_after_target_req = self.account.get_exchange_rate(target_currency)
+                current_time = time.time()
+                self.__exchange_rates[(actual_acc_currency_after_target_req, target_currency)] = (rate_to_target, current_time)
+                if rate_to_target != 0: self.__exchange_rates[(target_currency, actual_acc_currency_after_target_req)] = (1.0 / rate_to_target, current_time)
 
-                assert currency1 == currency2
+                # Теперь нам нужно убедиться, что обе "базовые" валюты (actual_acc_currency_...) одинаковы
+                # или мы можем их привести к одной.
+                # Самый простой случай: если self.account.currency теперь совпадает с actual_acc_currency_after_base_req
+                # и также с actual_acc_currency_after_target_req (т.е. валюта аккаунта не менялась или вернулась к одной и той же)
+                
+                # Если валюта аккаунта после первого запроса стала base_currency
+                if actual_acc_currency_after_base_req == base_currency:
+                    # Значит rate_to_base был 1.0 (или очень близок).
+                    # Теперь self.account.currency == base_currency.
+                    # Мы запрашиваем курс из base_currency в target_currency.
+                    # rate_to_target - это и есть наш искомый курс base->target.
+                    final_rate = rate_to_target
+                    self.__exchange_rates[(base_currency, target_currency)] = (final_rate, time.time())
+                    if final_rate != 0: self.__exchange_rates[(target_currency, base_currency)] = (1.0 / final_rate, time.time())
+                    return final_rate
+                
+                # Если валюта аккаунта после второго запроса стала target_currency
+                elif actual_acc_currency_after_target_req == target_currency:
+                    # rate_to_target был 1.0
+                    # self.account.currency == target_currency
+                    # rate_to_base был курсом из target_currency в base_currency, т.е. target->base
+                    # Нам нужен base->target, значит 1.0 / rate_to_base
+                    final_rate = 1.0 / rate_to_base if rate_to_base != 0 else float('inf') # Защита от деления на ноль
+                    self.__exchange_rates[(base_currency, target_currency)] = (final_rate, time.time())
+                    if final_rate != 0 and final_rate != float('inf'): self.__exchange_rates[(target_currency, base_currency)] = (1.0 / final_rate, time.time())
+                    return final_rate
 
-                result = exchange_rate2 / exchange_rate1
-                self.__exchange_rates[(base_currency, target_currency)] = (result, time.time())
-                self.__exchange_rates[(target_currency, base_currency)] = (1 / result, time.time())
+                # Более сложный случай: если валюта аккаунта после обоих запросов одна и та же, но не base и не target
+                # Например, RUB. Мы получили RUB->base и RUB->target. Тогда base->target = (RUB->target) / (RUB->base)
+                if actual_acc_currency_after_base_req == actual_acc_currency_after_target_req:
+                    # rate_to_base это курс ACC_CUR -> base_currency (сколько base_currency за 1 ACC_CUR)
+                    # rate_to_target это курс ACC_CUR -> target_currency (сколько target_currency за 1 ACC_CUR)
+                    # Нам нужен курс base_currency -> target_currency
+                    # 1 base_currency = (1 / rate_to_base) ACC_CUR
+                    # Это количество ACC_CUR даст (1 / rate_to_base) * rate_to_target единиц target_currency
+                    if rate_to_base == 0: # Предотвращаем деление на ноль
+                        logger.error("Нулевой курс обмена при расчете, невозможно определить курс.")
+                        return float('inf') # или другое значение ошибки
+                    final_rate = rate_to_target / rate_to_base
+                    self.__exchange_rates[(base_currency, target_currency)] = (final_rate, time.time())
+                    if final_rate != 0 and final_rate != float('inf'): self.__exchange_rates[(target_currency, base_currency)] = (1.0 / final_rate, time.time())
+                    return final_rate
 
-                return result
-            except:
-                logger.warning(f"Не удалось получить курс обмена. Осталось попыток: {i}")
-                logger.debug("TRACEBACK", exc_info=True)
-                time.sleep(1)
+                logger.warning("Не удалось однозначно определить курс обмена из-за смены валюты аккаунта. Повторная попытка...")
+                # Если валюта аккаунта менялась непредсказуемо, пробуем еще раз
 
+            except Exception as e:
+                logger.warning(f"Ошибка при получении курса обмена (попытка {attempt + 1}): {e}")
+                if attempt < 2: time.sleep(random.uniform(1, 2)) # Пауза перед повтором
+        
+        logger.error("Не удалось получить курс обмена после нескольких попыток.")
         raise Exception("Не удалось получить курс обмена: превышено количество попыток.")
 
     def update_session(self, attempts: int = 3) -> bool:
@@ -571,14 +691,15 @@ class Cortex(object): # Renamed class
             except TimeoutError:
                 logger.warning(_("crd_session_timeout_err"))
             except (FunPayAPI.exceptions.UnauthorizedError, FunPayAPI.exceptions.RequestFailedError) as e:
-                logger.error(e.short_str)
+                logger.error(e.short_str()) # Используем short_str()
                 logger.debug(e)
             except:
                 logger.error(_("crd_session_unexpected_err"))
                 logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
-            logger.warning(_("crd_try_again_in_n_secs", 2))
-            time.sleep(2)
+            if attempts > 0: # Выводим, только если будут еще попытки
+                 logger.warning(_("crd_try_again_in_n_secs", 2))
+                 time.sleep(2)
         else:
             logger.error(_("crd_session_no_more_attempts_err"))
             return False
@@ -610,7 +731,7 @@ class Cortex(object): # Renamed class
         """
         Запускает бесконечный цикл поднятия категорий (если autoRaise в _main.cfg == 1)
         """
-        if not self.profile.get_lots():
+        if not self.profile or not self.profile.get_lots(): # Добавил проверку на self.profile
             logger.info(_("crd_raise_loop_not_started"))
             return
 
@@ -622,31 +743,41 @@ class Cortex(object): # Renamed class
                     continue
                 next_time = self.raise_lots()
                 delay = next_time - int(time.time())
-                if delay <= 0:
+                if delay <= 0: # Если время уже прошло или равно 0, поднимаем сразу (или с небольшой задержкой)
+                    logger.debug(f"Небольшая задержка перед следующим поднятием (delay={delay}).")
+                    time.sleep(random.uniform(1,3)) # Небольшая случайная задержка
                     continue
+                logger.debug(f"Следующее поднятие лотов через: {cardinal_tools.time_to_str(delay)}")
                 time.sleep(delay)
-            except:
+            except Exception as e: # Ловим общие исключения в цикле
+                logger.error(f"Ошибка в цикле поднятия лотов: {e}")
                 logger.debug("TRACEBACK", exc_info=True)
+                time.sleep(60) # Пауза в случае ошибки
 
     def update_session_loop(self):
         """
         Запускает бесконечный цикл обновления данных о пользователе.
         """
         logger.info(_("crd_session_loop_started"))
-        sleep_time = 3600
+        default_sleep_time = 3600 # 1 час
+        error_sleep_time = 60 # 1 минута в случае ошибки
+        
         while True:
-            time.sleep(sleep_time)
+            time.sleep(default_sleep_time) # Сначала ждем
             result = self.update_session()
-            sleep_time = 60 if not result else 3600
+            # Логика изменения времени сна не нужна, так как update_session() сама делает попытки.
+            # Если она не удалась, значит были серьезные проблемы, и через час снова попробуем.
+            # Если нужно чаще при ошибке, то можно добавить:
+            # sleep_time = error_sleep_time if not result else default_sleep_time
 
     # Управление процессом
     def init(self):
         """
-        Инициализирует кортекс: регистрирует хэндлеры, инициализирует и запускает Telegram бота, # Renamed comment
+        Инициализирует кортекс: регистрирует хэндлеры, инициализирует и запускает Telegram бота,
         получает данные аккаунта и профиля.
         """
         self.add_handlers_from_plugin(handlers)
-        # self.add_handlers_from_plugin(announcements) # Disabled announcements
+        self.add_handlers_from_plugin(announcements) # Re-enabled
         self.load_plugins()
         self.add_handlers()
 
@@ -662,17 +793,17 @@ class Cortex(object): # Renamed class
             self.telegram.setup_commands()
             try:
                 self.telegram.edit_bot()
-            except AttributeError:  # todo убрать когда-то
-                logger.warning("Произошла ошибка при изменении бота Telegram. Обновляю библиотеку...")
+            except AttributeError:
+                logger.warning("Произошла ошибка при изменении бота Telegram. Обновляю библиотеку pyTelegramBotAPI...")
                 logger.debug("TRACEBACK", exc_info=True)
                 try:
-                    main(["install", "-U", "pytelegrambotapi==4.15.2"])
-                    logger.info("Библиотека обновлена.")
+                    main(["install", "-U", "pytelegrambotapi>=4.15.2"]) # Версия как в requirements
+                    logger.info("Библиотека pyTelegramBotAPI обновлена.")
                 except:
-                    logger.warning("Произошла ошибка при обновлении библиотеки.")
+                    logger.warning("Произошла ошибка при обновлении библиотеки pyTelegramBotAPI.")
                     logger.debug("TRACEBACK", exc_info=True)
-            except:
-                logger.warning("Произошла ошибка при изменении бота Telegram.")
+            except Exception as e:
+                logger.warning(f"Произошла ошибка при изменении информации о боте Telegram: {e}.")
                 logger.debug("TRACEBACK", exc_info=True)
 
             Thread(target=self.telegram.run, daemon=True).start()
@@ -685,7 +816,7 @@ class Cortex(object): # Renamed class
 
     def run(self):
         """
-        Запускает кортекс после инициализации. Используется для первого старта. # Renamed comment
+        Запускает кортекс после инициализации. Используется для первого старта.
         """
         self.run_id += 1
         self.start_time = int(time.time())
@@ -698,7 +829,7 @@ class Cortex(object): # Renamed class
 
     def start(self):
         """
-        Запускает кортекс после остановки. Не используется. # Renamed comment
+        Запускает кортекс после остановки. Не используется.
         """
         self.run_id += 1
         self.run_handlers(self.pre_start_handlers, (self,))
@@ -707,7 +838,7 @@ class Cortex(object): # Renamed class
 
     def stop(self):
         """
-        Останавливает кортекс. Не используется. # Renamed comment
+        Останавливает кортекс. Не используется.
         """
         self.run_id += 1
         self.run_handlers(self.pre_stop_handlers, (self,))
@@ -740,98 +871,140 @@ class Cortex(object): # Renamed class
         :param config: объект конфига.
         :param file_path: путь до файла, в который нужно сохранить конфиг.
         """
-        with open(file_path, "w", encoding="utf-8") as f:
-            config.write(f)
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                config.write(f)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения конфига {file_path}: {e}")
 
     # Загрузка плагинов
     @staticmethod
-    def is_uuid_valid(uuid: str) -> bool:
+    def is_uuid_valid(uuid_str: str) -> bool: # Renamed var
         """
         Проверяет, является ли UUID плагина валидным.
-        :param uuid: UUID4.
+        :param uuid_str: UUID4 в виде строки.
         """
         try:
-            uuid_obj = UUID(uuid, version=4)
+            uuid_obj = UUID(uuid_str, version=4)
         except ValueError:
             return False
-        return str(uuid_obj) == uuid
+        return str(uuid_obj) == uuid_str.lower() # UUID обычно в нижнем регистре
 
     @staticmethod
-    def is_plugin(file: str) -> bool:
+    def is_plugin(file_path: str) -> bool: # Changed param to full path
         """
-        Есть ли "noplug" в начале файла плагина?
-
-        :param file: файл плагина.
+        Проверяет, является ли файл плагином (не содержит ли "# noplug" в первой строке).
+        :param file_path: полный путь до файла плагина.
         """
-        with open(f"plugins/{file}", "r", encoding="utf-8") as f:
-            line = f.readline()
-        if line.startswith("#"):
-            line = line.replace("\n", "")
-            args = line.split()
-            if "noplug" in args:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                first_line = f.readline().strip()
+            if first_line.startswith("#") and "noplug" in first_line.split():
                 return False
-        return True
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка при проверке файла плагина {file_path}: {e}")
+            return False # Считаем не плагином при ошибке чтения
 
     @staticmethod
-    def load_plugin(from_file: str) -> tuple:
+    def load_plugin(plugin_file_name: str) -> tuple[ModuleType, dict] | None: # Renamed param, returns None on error
         """
         Создает модуль из переданного файла-плагина и получает необходимые поля для PluginData.
-        :param from_file: путь до файла-плагина.
-
-        :return: плагин, поля плагина.
+        :param plugin_file_name: имя файла-плагина (например, "my_plugin.py").
+        :return: (модуль плагина, словарь с полями) или None при ошибке.
         """
-        spec = importlib.util.spec_from_file_location(f"plugins.{from_file[:-3]}", f"plugins/{from_file}")
-        plugin = importlib.util.module_from_spec(spec)
-        sys.modules[f"plugins.{from_file[:-3]}"] = plugin
-        spec.loader.exec_module(plugin)
+        full_plugin_path = os.path.join("plugins", plugin_file_name)
+        module_name = f"plugins.{plugin_file_name[:-3]}" # Убираем .py для имени модуля
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, full_plugin_path)
+            if spec is None or spec.loader is None: # Проверка на случай если spec не создался
+                 logger.error(f"Не удалось создать spec для плагина {plugin_file_name}")
+                 return None
+            plugin_module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = plugin_module # Регистрируем модуль
+            spec.loader.exec_module(plugin_module)
 
-        fields = ["NAME", "VERSION", "DESCRIPTION", "CREDITS", "SETTINGS_PAGE", "UUID", "BIND_TO_DELETE"]
-        result = {}
+            required_fields = ["NAME", "VERSION", "DESCRIPTION", "CREDITS", "UUID"]
+            optional_fields = {"SETTINGS_PAGE": False, "BIND_TO_DELETE": None} # Значения по умолчанию
+            
+            plugin_data_dict = {}
 
-        for i in fields:
-            try:
-                value = getattr(plugin, i)
-            except AttributeError:
-                raise Utils.exceptions.FieldNotExistsError(i, from_file)
-            result[i] = value
-        return plugin, result
+            for field_name in required_fields:
+                if not hasattr(plugin_module, field_name):
+                    raise Utils.exceptions.FieldNotExistsError(field_name, plugin_file_name)
+                plugin_data_dict[field_name] = getattr(plugin_module, field_name)
+            
+            for field_name, default_value in optional_fields.items():
+                plugin_data_dict[field_name] = getattr(plugin_module, field_name, default_value)
+
+            # Проверка UUID
+            if not Cortex.is_uuid_valid(plugin_data_dict["UUID"]): # Вызываем статический метод
+                 logger.error(_("crd_invalid_uuid", plugin_file_name)) # Используем существующий ключ локализации
+                 return None
+
+
+            return plugin_module, plugin_data_dict
+        except Utils.exceptions.FieldNotExistsError as e: # Ловим свое же исключение
+            logger.error(f"Ошибка загрузки плагина {plugin_file_name}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при загрузке плагина {plugin_file_name}: {e}")
+            logger.debug("TRACEBACK", exc_info=True)
+            return None
+
 
     def load_plugins(self):
         """
         Импортирует все плагины из папки plugins.
         """
-        if not os.path.exists("plugins"):
+        plugins_dir = "plugins"
+        if not os.path.exists(plugins_dir):
             logger.warning(_("crd_no_plugins_folder"))
             return
-        plugins = [file for file in os.listdir("plugins") if file.endswith(".py")]
-        if not plugins:
+        
+        potential_plugin_files = [f for f in os.listdir(plugins_dir) if f.endswith(".py") and f != "__init__.py"]
+        if not potential_plugin_files:
             logger.info(_("crd_no_plugins"))
             return
 
-        sys.path.append("plugins")
-        for file in plugins:
-            try:
-                if not self.is_plugin(file):
-                    continue
-                plugin, data = self.load_plugin(file)
-            except:
-                logger.error(_("crd_plugin_load_err", file))
-                logger.debug("TRACEBACK", exc_info=True)
+        # Не нужно добавлять 'plugins' в sys.path если используем spec_from_file_location с полным путем
+        # sys.path.append(plugins_dir) 
+
+        for plugin_filename in potential_plugin_files:
+            full_path = os.path.join(plugins_dir, plugin_filename)
+            if not self.is_plugin(full_path): # Проверяем # noplug
+                logger.info(f"Файл '{plugin_filename}' помечен как 'noplug', пропускается.")
                 continue
 
-            if not self.is_uuid_valid(data["UUID"]):
-                logger.error(_("crd_invalid_uuid", file))
+            load_result = self.load_plugin(plugin_filename)
+            if load_result is None:
+                # Сообщение об ошибке уже было выведено в load_plugin
+                continue 
+            
+            plugin_module, plugin_fields_dict = load_result
+
+            plugin_uuid = plugin_fields_dict["UUID"]
+            if plugin_uuid in self.plugins:
+                logger.error(_("crd_uuid_already_registered", plugin_uuid, plugin_fields_dict['NAME']))
                 continue
 
-            if data["UUID"] in self.plugins:
-                logger.error(_("crd_uuid_already_registered", data['UUID'], data['NAME']))
-                continue
+            is_enabled = plugin_uuid not in self.disabled_plugins
+            
+            plugin_data_instance = PluginData(
+                name=plugin_fields_dict["NAME"],
+                version=plugin_fields_dict["VERSION"],
+                desc=plugin_fields_dict["DESCRIPTION"],
+                credentials=plugin_fields_dict["CREDITS"],
+                uuid=plugin_uuid,
+                path=full_path, # Сохраняем полный путь
+                plugin=plugin_module,
+                settings_page=plugin_fields_dict["SETTINGS_PAGE"],
+                delete_handler=plugin_fields_dict["BIND_TO_DELETE"],
+                enabled=is_enabled
+            )
+            self.plugins[plugin_uuid] = plugin_data_instance
+            logger.info(f"Плагин '{plugin_data_instance.name}' v{plugin_data_instance.version} (UUID: {plugin_uuid}) успешно загружен. Статус: {'Включен' if is_enabled else 'Выключен'}.")
 
-            plugin_data = PluginData(data["NAME"], data["VERSION"], data["DESCRIPTION"], data["CREDITS"], data["UUID"],
-                                     f"plugins/{file}", plugin, data["SETTINGS_PAGE"], data["BIND_TO_DELETE"],
-                                     False if data["UUID"] in self.disabled_plugins else True)
-
-            self.plugins[data["UUID"]] = plugin_data
 
     def add_handlers_from_plugin(self, plugin, uuid: str | None = None):
         """
@@ -867,17 +1040,22 @@ class Cortex(object): # Renamed class
         """
         for func in handlers_list:
             try:
-                if getattr(func, "plugin_uuid") is None or self.plugins[getattr(func, "plugin_uuid")].enabled:
+                # Проверяем, что плагин, к которому привязан хендлер, существует и включен,
+                # или это системный хендлер (plugin_uuid is None)
+                plugin_uuid_attr = getattr(func, "plugin_uuid", None)
+                if plugin_uuid_attr is None or \
+                   (plugin_uuid_attr in self.plugins and self.plugins[plugin_uuid_attr].enabled):
                     func(*args)
             except Exception as ex:
-                text = _("crd_handler_err")
-                try:
-                    text += f" {ex.short_str()}"
-                except:
-                    pass
-                logger.error(text)
+                error_message_short = ""
+                if hasattr(ex, 'short_str') and callable(getattr(ex, 'short_str')):
+                    error_message_short = f" ({ex.short_str()})" # Добавляем скобки для ясности
+                
+                # crd_handler_err уже локализован
+                logger.error(_("crd_handler_err") + error_message_short)
                 logger.debug("TRACEBACK", exc_info=True)
                 continue
+
 
     def add_telegram_commands(self, uuid: str, commands: list[tuple[str, str, bool]]):
         """
@@ -891,26 +1069,37 @@ class Cortex(object): # Renamed class
         :param commands: список команд (без "/")
         """
         if uuid not in self.plugins:
+            logger.warning(f"Попытка добавить команды для несуществующего плагина UUID: {uuid}")
             return
 
-        for i in commands:
-            self.plugins[uuid].commands[i[0]] = i[1]
-            if i[2] and self.telegram:
-                self.telegram.add_command_to_menu(i[0], i[1])
+        plugin_obj = self.plugins[uuid]
+        for command_text, help_text_key, add_to_menu_flag in commands:
+            plugin_obj.commands[command_text] = help_text_key # Сохраняем ключ для локализации
+            if add_to_menu_flag and self.telegram:
+                # Описание команды будет локализовано в TGBot.setup_commands
+                self.telegram.add_command_to_menu(command_text, help_text_key)
+        logger.info(f"Команды для плагина '{plugin_obj.name}' (UUID: {uuid}) зарегистрированы в Telegram.")
+
 
     def toggle_plugin(self, uuid):
         """
         Активирует / деактивирует плагин.
         :param uuid: UUID плагина.
         """
+        if uuid not in self.plugins:
+            logger.warning(f"Попытка переключить несуществующий плагин UUID: {uuid}")
+            return
+
         self.plugins[uuid].enabled = not self.plugins[uuid].enabled
         if self.plugins[uuid].enabled and uuid in self.disabled_plugins:
             self.disabled_plugins.remove(uuid)
         elif not self.plugins[uuid].enabled and uuid not in self.disabled_plugins:
             self.disabled_plugins.append(uuid)
         cardinal_tools.cache_disabled_plugins(self.disabled_plugins)
+        logger.info(f"Плагин '{self.plugins[uuid].name}' (UUID: {uuid}) теперь {'включен' if self.plugins[uuid].enabled else 'выключен'}.")
 
-    # Настройки
+
+    # Настройки (без изменений)
     @property
     def autoraise_enabled(self) -> bool:
         return self.MAIN_CFG["FunPay"].getboolean("autoRaise")

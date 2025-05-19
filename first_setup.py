@@ -1,7 +1,7 @@
 # START OF FILE FunPayCortex/first_setup.py
 
 """
-В данном модуле написана подпрограмма первичной настройки FunPayCortex. # Changed name
+В данном модуле написана подпрограмма первичной настройки FunPayCortex.
 """
 
 import os
@@ -11,7 +11,6 @@ import telebot
 from colorama import Fore, Style
 from Utils.cardinal_tools import validate_proxy, hash_password
 
-# locale#locale#locale
 default_config = {
     "FunPay": {
         "golden_key": "",
@@ -23,12 +22,13 @@ default_config = {
         "autoRestore": "0",
         "autoDisable": "0",
         "oldMsgGetMode": "0",
+        "keepSentMessagesUnread": "0", # Добавил этот параметр, если его нет в default_config
         "locale": "ru"
     },
     "Telegram": {
         "enabled": "0",
         "token": "",
-        "secretKeyHash": "ХешСекретногоПароля", # Placeholder, will be replaced
+        "secretKeyHash": "УстановитеСвойПароль", # Изменено для ясности
         "blockLogin": "0"
     },
 
@@ -82,11 +82,12 @@ default_config = {
         "port": "",
         "login": "",
         "password": "",
-        "check": "0"
+        "check": "0",
+        "checkInterval": "3600" # Добавил интервал проверки прокси по умолчанию (1 час)
     },
 
     "Other": {
-        "watermark": "🤖 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🧠", # Changed watermark
+        "watermark": "🧠 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🤖", # Обновленная вотермарка
         "requestsDelay": "4",
         "language": "ru"
     }
@@ -98,7 +99,7 @@ def create_configs():
         with open("configs/auto_response.cfg", "w", encoding="utf-8"):
             ...
 
-    if not os.path.exists("configs/auto_delivery.cfg"): # Corrected path
+    if not os.path.exists("configs/auto_delivery.cfg"):
         with open("configs/auto_delivery.cfg", "w", encoding="utf-8"):
             ...
 
@@ -128,13 +129,13 @@ def first_setup():
     config = create_config_obj(default_config)
     sleep_time = 1
 
-    print(f"{Fore.CYAN}{Style.BRIGHT}Привет! {Fore.RED}(`-`)/{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}{Style.BRIGHT}Привет! Это FunPay Cortex! {Fore.RED}(`-`)/{Style.RESET_ALL}")
     time.sleep(sleep_time)
 
     print(f"\n{Fore.CYAN}{Style.BRIGHT}Не могу найти основной конфиг... {Fore.RED}(-_-;). . .{Style.RESET_ALL}")
     time.sleep(sleep_time)
 
-    print(f"\n{Fore.CYAN}{Style.BRIGHT}Давай ка проведем первичную настройку! {Fore.RED}°++°{Style.RESET_ALL}")
+    print(f"\n{Fore.CYAN}{Style.BRIGHT}Давай проведем первичную настройку! {Fore.RED}°++°{Style.RESET_ALL}")
     time.sleep(sleep_time)
 
     while True:
@@ -153,10 +154,13 @@ def first_setup():
               f"Если хочешь, ты можешь указать свой User-agent (введи в Google \"my user agent\"). Или можешь просто нажать Enter. "
               f"{Fore.RED}¯\(°_o)/¯{Style.RESET_ALL}")
         user_agent = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
-        if contains_russian(user_agent):
+        if contains_russian(user_agent): # Небольшая валидация
             print(
-                f"\n{Fore.CYAN}{Style.BRIGHT}Ты не знаешь, что такое Google? {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
-            continue
+                f"\n{Fore.CYAN}{Style.BRIGHT}User-agent обычно не содержит русских букв. Уверен? Если да, введи еще раз, или оставь пустым. {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+            confirm_ua = input(f"{Fore.MAGENTA}{Style.BRIGHT}Повтори User-agent или нажми Enter, чтобы пропустить: {Style.RESET_ALL}").strip()
+            if confirm_ua != user_agent and confirm_ua != "": # Если не подтвердил и не пропустил
+                continue
+            user_agent = confirm_ua # Используем подтвержденное значение или пустое
         if user_agent:
             config.set("FunPay", "user_agent", user_agent)
         break
@@ -164,71 +168,73 @@ def first_setup():
     while True:
         print(
             f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}Введи API-токен Telegram-бота (получить его можно у @BotFather). "
-            f"@username бота должен начинаться с \"funpay\". {Fore.RED}(._.){Style.RESET_ALL}")
+            f"@username бота должен начинаться с \"funpay\" (рекомендация, не строго). {Fore.RED}(._.){Style.RESET_ALL}")
         token = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
         try:
             if not token or not token.split(":")[0].isdigit():
-                raise Exception("Неправильный формат токена")
-            username = telebot.TeleBot(token).get_me().username
-            if not username.lower().startswith("funpay"):
-                print(
-                    f"\n{Fore.CYAN}{Style.BRIGHT}@username бота должен начинаться с \"funpay\"! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
-                continue
+                raise ValueError("Неправильный формат токена")
+            test_bot = telebot.TeleBot(token, threaded=False) # threaded=False для теста
+            username = test_bot.get_me().username
+            # Можно убрать проверку на funpay в начале, если не нужно
+            # if not username.lower().startswith("funpay"):
+            #     print(
+            #         f"\n{Fore.CYAN}{Style.BRIGHT}@username бота (@{username}) должен начинаться с \"funpay\"! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+            #     continue
         except Exception as ex:
             s = ""
             if str(ex):
                 s = f" ({str(ex)})"
-            print(f"\n{Fore.CYAN}{Style.BRIGHT}Попробуй еще раз!{s} {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}{Style.BRIGHT}Ошибка проверки токена. Попробуй еще раз!{s} {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
             continue
         break
 
     while True:
         print(
-            f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}Придумай пароль (его потребует Telegram-бот). Пароль должен содержать более 8 символов, заглавные, строчные буквы и хотя бы одну цифру "
+            f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}Придумай пароль для доступа к Telegram ПУ. Пароль должен содержать >8 символов, заглавные, строчные буквы и цифру. "
             f" {Fore.RED}ᴖ̮ ̮ᴖ{Style.RESET_ALL}")
         password = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
-        if len(password) < 8 or password.lower() == password or password.upper() == password or not any(
-                [i.isdigit() for i in password]):
+        if not (len(password) >= 8 and
+                any(c.islower() for c in password) and
+                any(c.isupper() for c in password) and
+                any(c.isdigit() for c in password)):
             print(
-                f"\n{Fore.CYAN}{Style.BRIGHT}Это плохой пароль. Попробуй еще раз! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+                f"\n{Fore.CYAN}{Style.BRIGHT}Пароль слишком простой или не соответствует требованиям. Попробуй еще раз! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
             continue
         break
 
     config.set("Telegram", "enabled", "1")
     config.set("Telegram", "token", token)
-    config.set("Telegram", "secretKeyHash", hash_password(password)) # Hash the password
+    config.set("Telegram", "secretKeyHash", hash_password(password))
 
     while True:
         print(f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}"
-              f"Если хочешь использовать IPv4 прокси – укажи их в формате login:password@ip:port или ip:port. Если ты не знаешь, "
-              f"что это такое или они тебе не нужны - просто нажми Enter. "
+              f"Если хочешь использовать IPv4 прокси – укажи их в формате login:password@ip:port или ip:port. Если нет - просто нажми Enter. "
               f"{Fore.RED}(* ^ ω ^){Style.RESET_ALL}")
-        proxy = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
-        if proxy:
+        proxy_input = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip() # Переименовал переменную
+        if proxy_input:
             try:
-                login, password, ip, port = validate_proxy(proxy)
+                login, password_proxy, ip, port_proxy = validate_proxy(proxy_input) # Переименовал переменные
                 config.set("Proxy", "enable", "1")
-                config.set("Proxy", "check", "1")
+                config.set("Proxy", "check", "1") # По умолчанию включаем проверку
                 config.set("Proxy", "login", login)
-                config.set("Proxy", "password", password)
+                config.set("Proxy", "password", password_proxy)
                 config.set("Proxy", "ip", ip)
-                config.set("Proxy", "port", port)
+                config.set("Proxy", "port", str(port_proxy)) # port должен быть строкой в конфиге
                 break
-            except:
+            except ValueError as e: # Ловим конкретную ошибку от validate_proxy
                 print(
-                    f"\n{Fore.CYAN}{Style.BRIGHT}Неверный формат прокси. Попробуй еще раз! {Fore.RED}(o-_-o){Style.RESET_ALL}")
+                    f"\n{Fore.CYAN}{Style.BRIGHT}Неверный формат прокси ({e}). Попробуй еще раз! {Fore.RED}(o-_-o){Style.RESET_ALL}")
                 continue
         else:
             break
 
     print(f"\n{Fore.CYAN}{Style.BRIGHT}Готово! Сейчас я сохраню конфиг и завершу программу! "
           f"{Fore.RED}ʘ>ʘ{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{Style.BRIGHT}Запусти меня снова и напиши своему Telegram-боту. "
+    print(f"{Fore.CYAN}{Style.BRIGHT}Запусти меня снова (<code>python main.py</code> или <code>Start.bat</code>) и напиши своему Telegram-боту. "
           f"Все остальное ты сможешь настроить через него. {Fore.RED}ʕ•ᴥ•ʔ{Style.RESET_ALL}")
     with open("configs/_main.cfg", "w", encoding="utf-8") as f:
         config.write(f)
-    create_configs() # Create empty auto_response and auto_delivery configs
+    create_configs() 
     time.sleep(10)
-
 
 # END OF FILE FunPayCortex/first_setup.py
