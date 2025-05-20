@@ -134,7 +134,7 @@ def init_uploader(cortex_instance: Cortex):
         logger.info(f"Пользователь $MAGENTA@{m.from_user.username} (id: {m.from_user.id})$RESET "
                     f"загрузил файл с товарами $YELLOW{saved_file_path}$RESET.")
         bot.send_message(m.chat.id,
-                         _("products_file_upload_success", filepath=utils.escape(saved_file_path), count=products_count_str),
+                         _("products_file_upload_success", utils.escape(saved_file_path), products_count_str),
                          reply_markup=keyboard_reply)
 
     def act_upload_main_config(c: types.CallbackQuery):
@@ -156,7 +156,7 @@ def init_uploader(cortex_instance: Cortex):
         try:
             new_config = cfg_loader.load_main_config(temp_config_path)
         except excs.ConfigParseError as e:
-            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             if os.path.exists(temp_config_path): os.remove(temp_config_path)
             return
         except UnicodeDecodeError:
@@ -164,7 +164,7 @@ def init_uploader(cortex_instance: Cortex):
             if os.path.exists(temp_config_path): os.remove(temp_config_path)
             return
         except Exception as e:
-            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             logger.error(f"Непредвиденная ошибка при парсинге основного конфига {temp_config_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             if os.path.exists(temp_config_path): os.remove(temp_config_path)
@@ -198,7 +198,7 @@ def init_uploader(cortex_instance: Cortex):
             new_ar_config = cfg_loader.load_auto_response_config(temp_ar_cfg_path)
             raw_new_ar_config = cfg_loader.load_raw_auto_response_config(temp_ar_cfg_path)
         except excs.ConfigParseError as e:
-            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             if os.path.exists(temp_ar_cfg_path): os.remove(temp_ar_cfg_path)
             return
         except UnicodeDecodeError:
@@ -206,7 +206,7 @@ def init_uploader(cortex_instance: Cortex):
             if os.path.exists(temp_ar_cfg_path): os.remove(temp_ar_cfg_path)
             return
         except Exception as e:
-            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             logger.error(f"Непредвиденная ошибка при парсинге конфига автоответчика {temp_ar_cfg_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             if os.path.exists(temp_ar_cfg_path): os.remove(temp_ar_cfg_path)
@@ -240,7 +240,7 @@ def init_uploader(cortex_instance: Cortex):
         try:
             new_ad_config = cfg_loader.load_auto_delivery_config(temp_ad_cfg_path)
         except excs.ConfigParseError as e:
-            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             if os.path.exists(temp_ad_cfg_path): os.remove(temp_ad_cfg_path)
             return
         except UnicodeDecodeError:
@@ -248,7 +248,7 @@ def init_uploader(cortex_instance: Cortex):
             if os.path.exists(temp_ad_cfg_path): os.remove(temp_ad_cfg_path)
             return
         except Exception as e:
-            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             logger.error(f"Непредвиденная ошибка при парсинге конфига автовыдачи {temp_ad_cfg_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             if os.path.exists(temp_ad_cfg_path): os.remove(temp_ad_cfg_path)
@@ -283,7 +283,7 @@ def init_uploader(cortex_instance: Cortex):
 
         keyboard_reply = K().add(Button(_("gl_back"), callback_data=f"{CBT.PLUGINS_LIST}:{offset}"))
         bot.send_message(m.chat.id,
-                         _("plugin_uploaded_success", filename=utils.escape(original_plugin_filename)),
+                         _("plugin_uploaded_success", utils.escape(original_plugin_filename)), # ИСПРАВЛЕНО
                          reply_markup=keyboard_reply)
 
     def send_funpay_image_handler(m: types.Message):
@@ -363,9 +363,9 @@ def init_uploader(cortex_instance: Cortex):
             bot.reply_to(m, _("image_upload_error_generic"))
             return
 
-        success_message_header = _("image_upload_success_header", image_id=image_id_on_fp)
+        success_message_header = _("image_upload_success_header", image_id_on_fp)
         additional_info_key = "image_upload_chat_success_info" if image_type == "chat" else "image_upload_offer_success_info"
-        additional_info_text = _(additional_info_key, image_id=image_id_on_fp)
+        additional_info_text = _(additional_info_key, image_id_on_fp)
 
         bot.reply_to(m, f"{success_message_header}{additional_info_text}")
 
