@@ -42,7 +42,7 @@ logo = r"""
 
 """ # ИСПРАВЛЕННЫЙ ЛОГОТИП FPCortex
 
-VERSION = "0.1.15.23"
+VERSION = "0.1.15.24"
 
 Utils.cortex_tools.set_console_title(f"FunPay Cortex v{VERSION}")
 
