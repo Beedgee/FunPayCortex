@@ -219,8 +219,14 @@ msg_templates = "📝 Шаблони"
 msg_more = "🔎 Детальніше"
 
 # Тексти повідомлень
-access_denied = "Привіт, <b><i>{}</i></b>! 👋\n\nНа жаль, у тебе немає доступу. ⛔\n\n" \
-                "🔑 Введи <u><b>секретний пароль</b></u> (вказаний при першому налаштуванні), щоб увійти."
+access_denied = """Привіт, <b><i>{}</i></b>! 👋
+
+На жаль, у тебе немає доступу. ⛔
+
+🔑 Введи <u><b>секретний пароль</b></u> (вказаний при першому налаштуванні), щоб увійти.
+
+✨ <b>FunPay Cortex</b> - твій найкращий помічник на FunPay!
+📢 Дізнатися більше та приєднатися до нашої спільноти можна на каналі: <a href="https://t.me/FunPayCortex"><b>FunPay Cortex Channel</b></a>"""
 access_granted = "Доступ відкрито! 🔓\n\n" \
                  "📢 Май на увазі: сповіщення в <b><u>цей чат</u></b> поки не надходять.\n\n" \
                  "🔔 Налаштувати їх можна в меню.\n\n" \
@@ -540,15 +546,7 @@ exc_cmd_duplicate = "Команда або суб-команда «{}» вже �
 exc_cfg_parse_err = "Помилка в конфігу {}, секція [{}]: {}"
 exc_plugin_field_not_found = "Не вдалося завантажити плагін «{}»: відсутнє обов'язкове поле «{}»."
 
-# Логи (залишаємо як є, оскільки це для розробника, а не користувача)
-# (Assuming logs are for developers and do not need full translation of dynamic parts, only static ones if any)
-# For brevity, only a few log examples are fully shown if they contain translatable static text.
-# Most log lines are format strings with placeholders and color codes.
-# The static parts of log strings are generally kept in English for developers across languages,
-# or are simple enough that translation isn't critical for their primary audience (devs).
-# However, if full translation is desired, each $COLOR...$RESET string needs careful review.
-# Given the prompt "просто пиши", I will translate user-facing components and keep logs largely as is or with minimal changes.
-
+# Логи (Залишаємо переважно англійською для розробників, перекладаємо лише очевидні статичні частини)
 log_tg_initialized = "$MAGENTATelegram бот ініціалізовано."
 log_tg_started = "$CYANTelegram бот $YELLOW@{}$CYAN запущено."
 log_tg_handler_error = "Сталася помилка під час виконання хендлера Telegram бота."

@@ -219,8 +219,14 @@ msg_templates = "📝 Templates"
 msg_more = "🔎 More Details"
 
 # Message Texts
-access_denied = "Hello, <b><i>{}</i></b>! 👋\n\nUnfortunately, you do not have access. ⛔\n\n" \
-                "🔑 Enter the <u><b>secret password</b></u> (specified during initial setup) to log in."
+access_denied = """Hello, <b><i>{}</i></b>! 👋
+
+Unfortunately, you do not have access. ⛔
+
+🔑 Enter the <u><b>secret password</b></u> (specified during initial setup) to log in.
+
+✨ <b>FunPay Cortex</b> - your best assistant on FunPay!
+📢 Learn more and join our community on the channel: <a href="https://t.me/FunPayCortex"><b>FunPay Cortex Channel</b></a>"""
 access_granted = "Access granted! 🔓\n\n" \
                  "📢 Note: notifications to <b><u>this chat</u></b> are not yet active.\n\n" \
                  "🔔 You can configure them in the menu.\n\n" \
@@ -260,7 +266,7 @@ fpc_init = """✅ <b><u>FPCortex initialized!</u></b>
 👨‍💻 <b><i>Author:</i></b> @beedge"""
 
 create_test_ad_key = "Enter the listing name to test auto-delivery."
-test_ad_key_created = """✅ A one-time key for delivering the listing '<code>{}</code>' has been created.
+test_ad_key_created = """✅ A one-time key for delivering the listing '{<code>{}</code>}' has been created.
 Send the command below in the chat with the buyer to deliver the product:
 <code>!autodelivery {}</code>"""
 about = """<b>🧠 FPCortex 🧠 v{}</b>
@@ -385,7 +391,7 @@ copy_lot_name = "Send the exact name of the listing (as on FunPay)."
 act_create_gf = "Enter a name for the new product file (e.g., 'steam_keys')."
 gf_name_invalid = "🚫 Invalid file name.\n\n" \
                   "Only <b><u>English</u></b> " \
-                  "and <b><u>Russian</u></b> letters, numbers, and symbols <code>_</code>, <code>-</code>, and <code>space</code> are allowed." # Note: "Russian" might need to be removed/changed if targeting only English
+                  "letters, numbers, and symbols <code>_</code>, <code>-</code>, and <code>space</code> are allowed." # Removed "and Russian"
 gf_already_exists_err = "⚠️ File <code>{}</code> already exists."
 gf_creation_err = "⚠️ Error creating file <code>{}</code>."
 gf_created = "✅ File <code>storage/products/{}</code> created."
@@ -540,7 +546,7 @@ exc_cmd_duplicate = "Command or sub-command \"{}\" already exists."
 exc_cfg_parse_err = "Error in config {}, section [{}]: {}"
 exc_plugin_field_not_found = "Failed to load plugin \"{}\": missing required field \"{}\"."
 
-# Logs
+# Logs (Primarily for developers, static parts kept as-is or minimally translated for clarity)
 log_tg_initialized = "$MAGENTATelegram bot initialized."
 log_tg_started = "$CYANTelegram bot $YELLOW@{}$CYAN started."
 log_tg_handler_error = "An error occurred while executing Telegram bot handler."

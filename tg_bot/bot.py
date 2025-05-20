@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/bot.py
+# START OF FILE FunPayCortex-main/tg_bot/bot.py
 
 """
 В данном модуле написан Telegram бот.
@@ -24,6 +24,7 @@ import psutil
 import telebot
 from telebot.apihelper import ApiTelegramException
 import logging
+import requests # Добавлен импорт requests
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery, BotCommand, \
     InputFile
@@ -102,7 +103,7 @@ class TGBot:
         if del_msg:
             try:
                 self.bot.delete_message(chat_id, msg_id)
-            except ApiTelegramException: # Ловим конкретную ошибку, если сообщение уже удалено
+            except ApiTelegramException: 
                 pass
             except Exception as e:
                 logger.warning(f"Не удалось удалить сообщение {msg_id} при очистке состояния: {e}")
@@ -121,11 +122,10 @@ class TGBot:
             return False
 
     def toggle_notification(self, chat_id: int, notification_type: str) -> bool:
-        chat_id_str = str(chat_id) # Убедимся, что chat_id - строка для ключа словаря
+        chat_id_str = str(chat_id) 
         if chat_id_str not in self.notification_settings:
-            self.notification_settings[chat_id_str] = {} # Инициализируем, если чата нет
+            self.notification_settings[chat_id_str] = {} 
 
-        # Безопасное получение текущего значения, по умолчанию False (выключено)
         current_status = self.notification_settings[chat_id_str].get(notification_type, False)
         self.notification_settings[chat_id_str][notification_type] = not current_status
         utils.save_notification_settings(self.notification_settings)
@@ -141,7 +141,7 @@ class TGBot:
             return
         try:
             self.file_handlers[state["state"]](m)
-        except Exception as e: # Ловим общее исключение
+        except Exception as e: 
             logger.error(_("log_tg_handler_error") + f" (File Handler: {state['state']})")
             logger.debug(f"Error details: {e}", exc_info=True)
 
@@ -152,7 +152,7 @@ class TGBot:
         def run_handler(message: Message):
             try:
                 handler(message)
-            except Exception as e: # Ловим общее исключение
+            except Exception as e: 
                 logger.error(_("log_tg_handler_error") + f" (Message Handler: {handler.__name__})")
                 logger.debug(f"Error details: {e}", exc_info=True)
 
@@ -162,17 +162,17 @@ class TGBot:
         def run_handler(call: CallbackQuery):
             try:
                 handler(call)
-            except Exception as e: # Ловим общее исключение
+            except Exception as e: 
                 logger.error(_("log_tg_handler_error") + f" (Callback Handler: {handler.__name__}, data: {call.data[:50]})")
                 logger.debug(f"Error details: {e}", exc_info=True)
 
     def mdw_handler(self, handler, **kwargs):
         bot_instance = self.bot
         @bot_instance.middleware_handler(**kwargs)
-        def run_handler(bot_mdw, update): # Переименовал bot в bot_mdw, чтобы не конфликтовать
+        def run_handler(bot_mdw, update): 
             try:
                 handler(bot_mdw, update)
-            except Exception as e: # Ловим общее исключение
+            except Exception as e: 
                 logger.error(_("log_tg_handler_error") + f" (Middleware Handler: {handler.__name__})")
                 logger.debug(f"Error details: {e}", exc_info=True)
 
@@ -183,12 +183,10 @@ class TGBot:
 
         if chat_id_str not in self.notification_settings:
             self.notification_settings[chat_id_str] = self.__default_notification_settings.copy()
-            # Включаем критические уведомления, если пользователь авторизован, ИНАЧЕ выключаем
             self.notification_settings[chat_id_str][NotificationTypes.critical] = 1 if user_id in self.authorized_users else 0
             utils.save_notification_settings(self.notification_settings)
         elif user_id in self.authorized_users and \
              not self.notification_settings[chat_id_str].get(NotificationTypes.critical, False):
-            # Если пользователь уже авторизован, а критические уведомления были выключены (например, из-за старой логики) - включаем
             self.notification_settings[chat_id_str][NotificationTypes.critical] = 1
             utils.save_notification_settings(self.notification_settings)
 
@@ -201,21 +199,18 @@ class TGBot:
         if not self.cortex.block_tg_login and \
                 cortex_tools.check_password(m.text, self.cortex.MAIN_CFG["Telegram"]["secretKeyHash"]):
 
-            # Сохраняем username и ID при авторизации
             self.authorized_users[m.from_user.id] = {"username": m.from_user.username or str(m.from_user.id)}
             utils.save_authorized_users(self.authorized_users)
 
-            # Включаем критические уведомления для этого чата
             chat_id_str = str(m.chat.id)
             if chat_id_str not in self.notification_settings:
                 self.notification_settings[chat_id_str] = self.__default_notification_settings.copy()
-            self.notification_settings[chat_id_str][NotificationTypes.critical] = 1 # Гарантированно включаем
+            self.notification_settings[chat_id_str][NotificationTypes.critical] = 1 
             utils.save_notification_settings(self.notification_settings)
 
             text = _("access_granted", language=lang)
             kb_links = None
             logger.warning(_("log_access_granted", m.from_user.username, m.from_user.id))
-            # Отправляем уведомление в *другие* админские чаты (если они есть и настроены)
             self.send_notification(text=_("access_granted_notification", m.from_user.username, m.from_user.id),
                                    notification_type=NotificationTypes.critical, pin=True, exclude_chat_id=m.chat.id)
         else:
@@ -231,12 +226,11 @@ class TGBot:
         self.attempts[c.from_user.id] = self.attempts.get(c.from_user.id, 0) + 1
         if self.attempts[c.from_user.id] <= 5:
             self.bot.answer_callback_query(c.id, _("adv_fpc", language=c.from_user.language_code), show_alert=True)
-        else: # Если попыток много, можно просто игнорировать
+        else: 
             self.bot.answer_callback_query(c.id)
 
 
     def send_settings_menu(self, m: Message):
-        # START OF /start ADVERTISING BLOCK
         start_message = f"""👋 <b>{_('desc_main', language=m.from_user.language_code)}</b>
 
         🧠 <b>FunPay Cortex v{self.cortex.VERSION}</b>
@@ -245,8 +239,7 @@ class TGBot:
         🔗 <a href="https://t.me/FunPayCortex"><b>Канал FPCortex в Telegram</b></a> - обновления, плагины, общение!
 
         👇 {_('cmd_menu').capitalize()}:
-        """ # cmd_menu уже локализован, берем его
-        # END OF /start ADVERTISING BLOCK
+        """ 
         self.bot.send_message(m.chat.id, start_message, reply_markup=skb.SETTINGS_SECTIONS(), disable_web_page_preview=True)
 
 
@@ -260,7 +253,7 @@ class TGBot:
 
     def change_cookie(self, m: Message):
         self.clear_state(m.chat.id, m.from_user.id, True)
-        golden_key = m.text.strip() # Добавил strip()
+        golden_key = m.text.strip() 
         if len(golden_key) != 32 or golden_key != golden_key.lower() or len(golden_key.split()) != 1:
             self.bot.send_message(m.chat.id, _("cookie_incorrect_format"))
             return
@@ -269,7 +262,7 @@ class TGBot:
                               locale=self.cortex.account.locale)
         try:
             new_account.get()
-        except Exception as e: # Ловим общее исключение
+        except Exception as e: 
             logger.warning(_("cookie_error") + f": {e}")
             logger.debug("TRACEBACK", exc_info=True)
             self.bot.send_message(m.chat.id, _("cookie_error"))
@@ -281,7 +274,7 @@ class TGBot:
             self.cortex.account.golden_key = golden_key
             try:
                 self.cortex.account.get()
-            except Exception as e: # Ловим общее исключение
+            except Exception as e: 
                 logger.warning(_("cookie_error") + f": {e}")
                 logger.debug("TRACEBACK", exc_info=True)
                 self.bot.send_message(m.chat.id, _("cookie_error"))
@@ -302,10 +295,10 @@ class TGBot:
         try:
             self.cortex.account.get()
             self.cortex.balance = self.cortex.get_balance()
-            self.bot.delete_message(new_msg.chat.id, new_msg.id) # Удаляем сообщение "Обновляю..."
+            self.bot.delete_message(new_msg.chat.id, new_msg.id) 
             self.bot.edit_message_text(utils.generate_profile_text(self.cortex), c.message.chat.id,
                                    c.message.id, reply_markup=skb.REFRESH_BTN())
-        except Exception as e: # Ловим общее исключение
+        except Exception as e: 
             self.bot.edit_message_text(_("profile_updating_error") + f"\nError: {str(e)[:100]}", new_msg.chat.id, new_msg.id)
             logger.error(f"Ошибка при обновлении профиля через TG: {e}")
             logger.debug("TRACEBACK", exc_info=True)
@@ -365,14 +358,14 @@ class TGBot:
 
     def act_edit_watermark(self, m: Message):
         watermark = self.cortex.MAIN_CFG["Other"]["watermark"]
-        watermark_display = f"\n\n{_('crd_msg_sent', '').split(' в чат')[0]} {_('v_edit_watermark_current', language=localizer.current_language)}: <code>{utils.escape(watermark)}</code>" if watermark else "" # Ключ для "Текущий"
+        watermark_display = f"\n\n{_('crd_msg_sent', '').split(' в чат')[0]} {_('v_edit_watermark_current', language=localizer.current_language)}: <code>{utils.escape(watermark)}</code>" if watermark else "" 
         result = self.bot.send_message(m.chat.id, _("act_edit_watermark").format(watermark_display),
                                        reply_markup=skb.CLEAR_STATE_BTN())
         self.set_state(m.chat.id, result.id, m.from_user.id, CBT.EDIT_WATERMARK)
 
     def edit_watermark(self, m: Message):
         self.clear_state(m.chat.id, m.from_user.id, True)
-        watermark_text = m.text.strip() if m.text.strip() != "-" else "" # Убираем strip() для "-"
+        watermark_text = m.text.strip() if m.text.strip() != "-" else "" 
         if re.fullmatch(r"\[[a-zA-Z]+]", watermark_text):
             self.bot.reply_to(m, _("watermark_error"))
             return
@@ -394,12 +387,11 @@ class TGBot:
         else:
             progress_msg = self.bot.send_message(m.chat.id, _("logfile_sending"))
             try:
-                with open("logs/log.log", "rb") as f: # Открываем в бинарном режиме
+                with open("logs/log.log", "rb") as f: 
                     mode_info = _("gs_old_msg_mode").replace("{} ", "") if self.cortex.old_mode_enabled else _("old_mode_help").split('\n')[0].replace("<b>","").replace("</b>","").replace("🚀","").strip()
                     self.bot.send_document(m.chat.id, f,
                                            caption=f"📄 Лог-файл FPCortex\nРежим сообщений: <i>{mode_info}</i>")
-                # Поиск последней ошибки больше не нужен здесь, так как логирование ошибок улучшено
-                self.bot.delete_message(progress_msg.chat.id, progress_msg.id) # Удаляем сообщение "Отправляю..."
+                self.bot.delete_message(progress_msg.chat.id, progress_msg.id) 
             except Exception as e:
                 self.bot.edit_message_text(_("logfile_error") + f"\nError: {str(e)[:100]}", progress_msg.chat.id, progress_msg.id)
                 logger.error(f"Ошибка при отправке логов: {e}")
@@ -411,22 +403,22 @@ class TGBot:
             f"[IMPORTANT] Удаляю старые логи по запросу пользователя $MAGENTA@{m.from_user.username} (id: {m.from_user.id})$RESET.")
         deleted_count = 0
         logs_dir = "logs"
-        if not os.path.isdir(logs_dir): # Проверяем, существует ли папка
-            self.bot.send_message(m.chat.id, _("logfile_deleted", 0)) # Сообщаем, что удалено 0 файлов
+        if not os.path.isdir(logs_dir): 
+            self.bot.send_message(m.chat.id, _("logfile_deleted", 0)) 
             return
 
         for file_name in os.listdir(logs_dir):
-            if file_name == "log.log": # Пропускаем текущий активный лог-файл
+            if file_name == "log.log": 
                 continue
             try:
                 full_path = os.path.join(logs_dir, file_name)
-                if os.path.isfile(full_path): # Убедимся, что это файл
+                if os.path.isfile(full_path): 
                     os.remove(full_path)
                     deleted_count += 1
-            except OSError as e: # Ловим ошибки ОС, например, если файл занят
+            except OSError as e: 
                 logger.warning(f"Не удалось удалить файл {file_name}: {e}")
                 continue
-            except Exception as e: # Общие ошибки
+            except Exception as e: 
                 logger.error(f"Непредвиденная ошибка при удалении файла {file_name}: {e}")
                 logger.debug("TRACEBACK", exc_info=True)
         self.bot.send_message(m.chat.id, _("logfile_deleted", deleted_count))
@@ -436,33 +428,33 @@ class TGBot:
 
     def check_updates(self, m: Message):
         curr_tag = f"v{self.cortex.VERSION}"
-        self.bot.send_message(m.chat.id, _("update_lasted", curr_tag) + "\n\nℹ️ Автоматическое обновление через бота временно отключено. Следите за новостями на канале @FunPayCortex.")
-        # releases = updater.get_new_releases(curr_tag)
-        # if isinstance(releases, int):
-        #     errors = {
-        #         1: ["update_no_tags", ()],
-        #         2: ["update_lasted", (curr_tag,)],
-        #         3: ["update_get_error", ()],
-        #     }
-        #     self.bot.send_message(m.chat.id, _(errors[releases][0], *errors[releases][1]))
-        #     return
-        # for release in releases:
-        #     self.bot.send_message(m.chat.id, _("update_available", f"{release.name}\n\n{release.description}"))
-        #     time.sleep(1)
-        # self.bot.send_message(m.chat.id, _("update_update"))
+        # self.bot.send_message(m.chat.id, _("update_lasted", curr_tag) + "\n\nℹ️ Следите за новостями на канале @FunPayCortex.")
+        releases = updater.get_new_releases(curr_tag)
+        if isinstance(releases, int):
+            errors = {
+                1: ["update_no_tags", ()],
+                2: ["update_lasted", (curr_tag,)],
+                3: ["update_get_error", ()],
+            }
+            self.bot.send_message(m.chat.id, _(errors[releases][0], *errors[releases][1]))
+            return
+        for release in releases:
+            self.bot.send_message(m.chat.id, _("update_available", f"{release.name}\n\n{release.description}"))
+            time.sleep(1)
+        self.bot.send_message(m.chat.id, _("update_update"))
 
     def get_backup(self, m: Message):
         logger.info(
             f"[IMPORTANT] Запрос резервной копии от $MAGENTA@{m.from_user.username} (id: {m.from_user.id})$RESET.")
         backup_path = "backup.zip"
         if os.path.exists(backup_path):
-            progress_msg = self.bot.send_message(m.chat.id, _("logfile_sending")) # "Отправляю файл..."
+            progress_msg = self.bot.send_message(m.chat.id, _("logfile_sending")) 
             try:
                 with open(backup_path, 'rb') as file_to_send:
                     modification_timestamp = os.path.getmtime(backup_path)
                     formatted_time = time.strftime('%d.%m.%Y %H:%M:%S', time.localtime(modification_timestamp))
                     self.bot.send_document(chat_id=m.chat.id, document=InputFile(file_to_send),
-                                           caption=f'{_("update_backup")}\n\n🗓️ {_("v_date_text").replace(" ($date_text)", "")}: {formatted_time}') # Локализация "Дата создания"
+                                           caption=f'{_("update_backup")}\n\n🗓️ {_("v_date_text").replace(" ($date_text)", "")}: {formatted_time}') 
                 self.bot.delete_message(progress_msg.chat.id, progress_msg.id)
             except Exception as e:
                 self.bot.edit_message_text(_("logfile_error") + f"\nError: {str(e)[:100]}", progress_msg.chat.id, progress_msg.id)
@@ -472,41 +464,41 @@ class TGBot:
             self.bot.send_message(m.chat.id, _("update_backup_not_found"))
 
     def create_backup(self, m: Message):
-        if updater.create_backup() != 0: # create_backup возвращает 0 при успехе
+        if updater.create_backup() != 0: 
             self.bot.send_message(m.chat.id, _("update_backup_error"))
             return False
         self.get_backup(m)
         return True
 
     def update(self, m: Message):
-        self.bot.send_message(m.chat.id, _("update_lasted", f"v{self.cortex.VERSION}") + "\n\nℹ️ Автоматическое обновление через бота временно отключено. Следите за новостями на канале @FunPayCortex.")
-        # curr_tag = f"v{self.cortex.VERSION}"
-        # releases = updater.get_new_releases(curr_tag)
-        # if isinstance(releases, int):
-        #     errors = {
-        #         1: ["update_no_tags", ()],
-        #         2: ["update_lasted", (curr_tag,)],
-        #         3: ["update_get_error", ()],
-        #     }
-        #     self.bot.send_message(m.chat.id, _(errors[releases][0], *errors[releases][1]))
-        #     return
-        # if not self.create_backup(m):
-        #     return
-        # release = releases[-1]
-        # if updater.download_zip(release.sources_link) != 0 \
-        #         or (release_folder := updater.extract_update_archive()) == 1:
-        #     self.bot.send_message(m.chat.id, _("update_download_error"))
-        #     return
-        # self.bot.send_message(m.chat.id, _("update_downloaded", release.name, str(len(releases) - 1)))
-        #
-        # if updater.install_release(release_folder) != 0:
-        #     self.bot.send_message(m.chat.id, _("update_install_error"))
-        #     return
-        #
-        # if getattr(sys, 'frozen', False):
-        #     self.bot.send_message(m.chat.id, _("update_done_exe"))
-        # else:
-        #     self.bot.send_message(m.chat.id, _("update_done"))
+        # self.bot.send_message(m.chat.id, _("update_lasted", f"v{self.cortex.VERSION}") + "\n\nℹ️ Следите за новостями на канале @FunPayCortex.")
+        curr_tag = f"v{self.cortex.VERSION}"
+        releases = updater.get_new_releases(curr_tag)
+        if isinstance(releases, int):
+            errors = {
+                1: ["update_no_tags", ()],
+                2: ["update_lasted", (curr_tag,)],
+                3: ["update_get_error", ()],
+            }
+            self.bot.send_message(m.chat.id, _(errors[releases][0], *errors[releases][1]))
+            return
+        if not self.create_backup(m): 
+            return
+        release = releases[-1] 
+        if updater.download_zip(release.sources_link) != 0 \
+                or (release_folder := updater.extract_update_archive()) == 1:
+            self.bot.send_message(m.chat.id, _("update_download_error"))
+            return
+        self.bot.send_message(m.chat.id, _("update_downloaded", release.name, str(len(releases) - 1)))
+        
+        if updater.install_release(release_folder) != 0:
+            self.bot.send_message(m.chat.id, _("update_install_error"))
+            return
+        
+        if getattr(sys, 'frozen', False):
+            self.bot.send_message(m.chat.id, _("update_done_exe"))
+        else:
+            self.bot.send_message(m.chat.id, _("update_done"))
 
     def send_system_info(self, m: Message):
         current_timestamp = int(time.time())
@@ -514,7 +506,7 @@ class TGBot:
         ram_info = psutil.virtual_memory()
         cpu_usage_per_core_list = psutil.cpu_percent(percpu=True)
         cpu_usage_per_core_str = "\n".join(
-            f"    {_('v_cpu_core', language=localizer.current_language)} {i+1}:  <code>{usage}%</code>" for i, usage in enumerate(cpu_usage_per_core_list)) # Ключ для "Ядро"
+            f"    {_('v_cpu_core', language=localizer.current_language)} {i+1}:  <code>{usage}%</code>" for i, usage in enumerate(cpu_usage_per_core_list)) 
         self.bot.send_message(m.chat.id, _("sys_info", cpu_usage_per_core_str, psutil.Process().cpu_percent(),
                                            ram_info.total // 1048576, ram_info.used // 1048576, ram_info.free // 1048576,
                                            psutil.Process().memory_info().rss // 1048576,
@@ -674,9 +666,9 @@ class TGBot:
                                            reply_markup=kb.reply(node_id, username, bool(is_again_reply), should_extend))
         except ApiTelegramException as e:
             if e.error_code == 400 and "message is not modified" in e.description.lower():
-                pass # Игнорируем ошибку, если сообщение не изменилось
+                pass 
             else:
-                raise e # Перевыбрасываем другие ошибки
+                raise e 
         self.bot.answer_callback_query(c.id)
 
 
@@ -731,7 +723,7 @@ class TGBot:
                  message_content_text = f"<a href=\"{msg_item.image_link}\">" \
                                      f"{utils.escape(msg_item.image_name) if self.cortex.MAIN_CFG['NewMessageView'].getboolean('showImageName') and not (msg_item.author_id == self.cortex.account.id and msg_item.by_bot) else _('photo')}</a>"
 
-            text_to_send += f"{author_prefix}{message_content_text or ''}\n\n" # Добавил or '' для случая, если message_content_text пуст
+            text_to_send += f"{author_prefix}{message_content_text or ''}\n\n" 
 
             last_author_id = msg_item.author_id
             last_by_bot_flag = msg_item.by_bot
@@ -739,7 +731,7 @@ class TGBot:
             last_by_fpcortex = msg_item.by_bot and msg_item.author_id == self.cortex.account.id
 
         text_to_send = text_to_send.strip()
-        if not text_to_send: text_to_send = f"<i>({_('no_messages_to_display', language=c.from_user.language_code)})</i>" # Ключ для "Нет сообщений для отображения"
+        if not text_to_send: text_to_send = f"<i>({_('no_messages_to_display', language=c.from_user.language_code)})</i>" 
         
         try:
             self.bot.edit_message_text(text_to_send, c.message.chat.id, c.message.id,
@@ -787,7 +779,7 @@ class TGBot:
                         progress_message = self.bot.send_message(c.message.chat.id, attempt_message_text)
                     else:
                         self.bot.edit_message_text(attempt_message_text, progress_message.chat.id, progress_message.id)
-                except ApiTelegramException as tg_api_err: # Если не удалось отправить/изменить сообщение о прогрессе
+                except ApiTelegramException as tg_api_err: 
                      logger.warning(f"Не удалось обновить сообщение о прогрессе возврата: {tg_api_err}")
                 attempts_left -= 1
                 if attempts_left > 0: time.sleep(1)
@@ -824,12 +816,11 @@ class TGBot:
 
 
     def open_cp(self, c: CallbackQuery):
-        # Обновляем desc_main с учетом языка пользователя
         desc_text = _("desc_main", language=c.from_user.language_code)
-        if c.message.content_type == 'text': # Только если это текстовое сообщение, пытаемся его изменить
+        if c.message.content_type == 'text': 
             self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
                                    reply_markup=skb.SETTINGS_SECTIONS())
-        else: # Если это не текст (например, фото с инлайн-клавиатурой), удаляем старое и отправляем новое
+        else: 
             try: self.bot.delete_message(c.message.chat.id, c.message.id)
             except: pass
             self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS())
@@ -854,7 +845,7 @@ class TGBot:
             self.cortex.switch_msg_get_mode()
         else:
             current_value_str = self.cortex.MAIN_CFG[section_name].get(option_name, "0")
-            new_value = str(int(not int(current_value_str))) # Проще преобразовать в int и обратно
+            new_value = str(int(not int(current_value_str))) 
             self.cortex.MAIN_CFG[section_name][option_name] = new_value
             self.cortex.save_config(self.cortex.MAIN_CFG, "configs/_main.cfg")
 
@@ -886,13 +877,13 @@ class TGBot:
 
         logger.info(_("log_param_changed", c.from_user.username, c.from_user.id, option_name, section_name,
                       self.cortex.MAIN_CFG[section_name][option_name]))
-        if not reply_markup_to_send: self.bot.answer_callback_query(c.id) # Если не обновляли клавиатуру
+        if not reply_markup_to_send: self.bot.answer_callback_query(c.id) 
 
 
     def switch_chat_notification(self, c: CallbackQuery):
         split_data = c.data.split(":")
-        chat_id_for_notif_str, notification_type_str = split_data[1], split_data[2] # chat_id уже строка
-        chat_id_for_notif = int(chat_id_for_notif_str) # Преобразуем в int для использования с NotificationTypes
+        chat_id_for_notif_str, notification_type_str = split_data[1], split_data[2] 
+        chat_id_for_notif = int(chat_id_for_notif_str) 
 
         toggle_result = self.toggle_notification(chat_id_for_notif, notification_type_str)
         logger.info(_("log_notification_switched", c.from_user.username, c.from_user.id,
@@ -912,7 +903,7 @@ class TGBot:
 
     def open_settings_section(self, c: CallbackQuery):
         section_key = c.data.split(":")[1]
-        user_lang = c.from_user.language_code # Получаем язык пользователя для локализации
+        user_lang = c.from_user.language_code 
         sections_map = {
             "lang": (_("desc_lang", language=user_lang), kb.language_settings, [self.cortex]),
             "main": (_("desc_gs", language=user_lang), kb.main_settings, [self.cortex]),
@@ -937,15 +928,12 @@ class TGBot:
                 except: pass
                 self.bot.send_message(c.message.chat.id, desc_text, reply_markup=kb_generator(*kb_args))
         else:
-            self.bot.answer_callback_query(c.id, _("unknown_action", language=user_lang), show_alert=True) # Ключ для "Неизвестное действие"
+            self.bot.answer_callback_query(c.id, _("unknown_action", language=user_lang), show_alert=True) 
             return
         self.bot.answer_callback_query(c.id)
 
     def cancel_action(self, call: CallbackQuery):
         clear_result = self.clear_state(call.message.chat.id, call.from_user.id, True)
-        # if clear_result is None: # Отвечаем на коллбэк в любом случае, чтобы убрать "часики"
-        #     self.bot.answer_callback_query(call.id)
-        # else: # Если состояние было и сообщение удалено, тоже отвечаем
         self.bot.answer_callback_query(call.id)
 
 
@@ -993,7 +981,7 @@ class TGBot:
             self.bot.answer_callback_query(c.id, alert_message, show_alert=True)
         else:
             self.bot.answer_callback_query(c.id)
-        c.data = f"{CBT.CATEGORY}:lang" # Обновляем данные для корректного вызова open_settings_section
+        c.data = f"{CBT.CATEGORY}:lang" 
         self.open_settings_section(c)
 
 
@@ -1063,40 +1051,32 @@ class TGBot:
 
     def send_notification(self, text: str | None, keyboard: K | None = None,
                           notification_type: str = utils.NotificationTypes.other, photo: bytes | None = None,
-                          pin: bool = False, exclude_chat_id: int | None = None): # Добавлен exclude_chat_id
+                          pin: bool = False, exclude_chat_id: int | None = None): 
         kwargs = {}
         if keyboard is not None:
             kwargs["reply_markup"] = keyboard
         to_delete_chats = []
         
-        active_notification_settings = self.notification_settings.copy() # Копируем для безопасной итерации
+        active_notification_settings = self.notification_settings.copy() 
 
         for chat_id_str, settings in active_notification_settings.items():
-            if exclude_chat_id and str(exclude_chat_id) == chat_id_str: # Пропускаем чат, если он исключен
+            if exclude_chat_id and str(exclude_chat_id) == chat_id_str: 
                 continue
 
-            # Проверка включены ли уведомления данного типа (кроме важных)
             if notification_type not in [NotificationTypes.critical, NotificationTypes.important_announcement] and \
-               not settings.get(notification_type, False): # Безопасное получение
+               not settings.get(notification_type, False): 
                 continue
-            # Для критических - проверяем авторизацию, если это не личный чат одного из админов
             if notification_type == NotificationTypes.critical:
                 is_admin_primary_chat = False
                 try:
-                    # Проверяем, является ли этот chat_id_str ID одного из авторизованных пользователей
                     if int(chat_id_str) in self.authorized_users:
                         is_admin_primary_chat = True
-                except ValueError: # Если chat_id_str не число, это не личный чаat
+                except ValueError: 
                     pass
                 
-                # Если это не личный чат админа, проверяем, есть ли активные сессии админов в этом чате
-                # (Например, если это групповой чат, куда добавлен бот и админ)
-                # Это более сложная проверка, пока оставим только проверку на личный чат админа
                 if not is_admin_primary_chat :
-                    # logger.debug(f"Критическое уведомление не отправлено в чат {chat_id_str}, т.к. он не является чатом авторизованного пользователя.")
-                    continue # Не отправляем в не-админские чаты
+                    continue 
             
-            # Если это важное объявление, и они выключены - не отправляем
             if notification_type == NotificationTypes.important_announcement and not settings.get(NotificationTypes.announcement, False):
                 continue
 
@@ -1112,9 +1092,9 @@ class TGBot:
                 if pin:
                     try:
                         self.bot.pin_chat_message(msg.chat.id, msg.id, disable_notification=True)
-                    except ApiTelegramException as pin_e: # Ловим специфичную ошибку
+                    except ApiTelegramException as pin_e: 
                         logger.warning(f"Не удалось закрепить сообщение в чате {msg.chat.id}: {pin_e.description}")
-                    except Exception as e_pin_generic: # Общая ошибка на всякий случай
+                    except Exception as e_pin_generic: 
                         logger.error(f"Непредвиденная ошибка при закреплении сообщения в чате {msg.chat.id}: {e_pin_generic}")
 
             except ApiTelegramException as e:
@@ -1127,17 +1107,17 @@ class TGBot:
                     "bot was kicked from the group chat" in e.description.lower() or \
                     "group chat was upgraded to a supergroup chat" in e.description.lower()):
                     to_delete_chats.append(chat_id_str)
-            except Exception as e_generic: # Общая ошибка
+            except Exception as e_generic: 
                 logger.error(_("log_tg_notification_error", chat_id_str) + f" (Generic Error: {e_generic})")
                 logger.debug("TRACEBACK", exc_info=True)
-                continue # Пропускаем этот чат, но не удаляем его из настроек, если это не ошибка API о недоступности чата
+                continue 
 
         if to_delete_chats:
             for chat_id_del in to_delete_chats:
                 if chat_id_del in self.notification_settings:
                     del self.notification_settings[chat_id_del]
                     logger.info(f"Настройки уведомлений для чата {chat_id_del} удалены, т.к. бот был заблокирован или удален из чата.")
-            if to_delete_chats: # Сохраняем, только если были изменения
+            if to_delete_chats: 
                 utils.save_notification_settings(self.notification_settings)
 
 
@@ -1145,7 +1125,6 @@ class TGBot:
         self.commands[command] = help_text_key
 
     def setup_commands(self):
-        # Установка команд для каждого языка
         for lang_code in [None] + list(localizer.languages.keys()):
             try:
                 bot_commands = [BotCommand(f"/{cmd_key}", _(help_text_key, language=lang_code))
@@ -1160,8 +1139,7 @@ class TGBot:
 
 
     def edit_bot(self):
-        for lang_code in [None] + list(localizer.languages.keys()): # None для языка по умолчанию
-            # Изменение имени бота (только для языка по умолчанию, так как имя одно на всех)
+        for lang_code in [None] + list(localizer.languages.keys()): 
             if lang_code is None:
                 try:
                     bot_me = self.bot.get_me()
@@ -1182,8 +1160,7 @@ class TGBot:
                     logger.error(f"Непредвиденная ошибка при изменении имени бота: {e_name_gen}")
 
 
-            # Короткое описание
-            new_short_description = _("adv_fpc", language=lang_code) # "FPCortex - твой лучший ассистент для FunPay!"
+            new_short_description = _("adv_fpc", language=lang_code) 
             try:
                 current_short_desc_obj = self.bot.get_my_short_description(language_code=lang_code)
                 if current_short_desc_obj.short_description != new_short_description:
@@ -1194,7 +1171,6 @@ class TGBot:
             except Exception as e_short_desc_gen:
                 logger.error(f"Непредвиденная ошибка при изменении короткого описания для языка '{lang_code or 'default'}': {e_short_desc_gen}")
 
-            # Полное описание "О боте"
             new_full_description = _("adv_description", self.cortex.VERSION, language=lang_code)
             try:
                 current_full_desc_obj = self.bot.get_my_description(language_code=lang_code)
@@ -1220,27 +1196,33 @@ class TGBot:
             try:
                 bot_username = self.bot.get_me().username
                 logger.info(_("log_tg_started", bot_username))
-                self.bot.infinity_polling(logger_level=logging.WARNING, timeout=60, long_polling_timeout=30) # Добавил таймауты
-            except ApiTelegramException as e_api: # Ловим специфичные ошибки API
+                self.bot.infinity_polling(logger_level=logging.WARNING, timeout=60, long_polling_timeout=30) 
+            except ApiTelegramException as e_api: 
                 k_err_count += 1
                 logger.error(_("log_tg_update_error", k_err_count) + f" (API Error: {e_api.error_code} - {e_api.description})")
                 logger.debug("TRACEBACK", exc_info=True)
-                if e_api.error_code == 401: # Unauthorized - токен неверный
+                if e_api.error_code == 401: 
                     logger.critical("Критическая ошибка: токен Telegram бота недействителен. Проверьте токен в _main.cfg. Бот остановлен.")
-                    cortex_tools.shut_down() # Останавливаем бота, так как без токена он бесполезен
-                    break # Выход из цикла while
-                elif e_api.error_code == 409: # Conflict: another instance of the bot is already running
+                    cortex_tools.shut_down() 
+                    break 
+                elif e_api.error_code == 409: 
                      logger.critical("Критическая ошибка: обнаружен конфликт (409). Возможно, запущена другая копия бота с этим же токеном. Бот остановлен.")
                      cortex_tools.shut_down()
                      break
-                time.sleep(30) # Увеличиваем задержку при ошибках API
-            except requests.exceptions.ConnectionError as e_conn: # Ошибки соединения
+                time.sleep(30) 
+            except requests.exceptions.ConnectionError as e_conn: 
                 k_err_count += 1
                 logger.error(_("log_tg_update_error", k_err_count) + f" (Connection Error: {e_conn})")
                 logger.debug("TRACEBACK", exc_info=True)
-                time.sleep(60) # Длительная пауза при проблемах с сетью
-            except Exception as e: # Общие ошибки
+                time.sleep(60) 
+            except Exception as e: 
                 k_err_count += 1
                 logger.error(_("log_tg_update_error", k_err_count) + f" (General Error: {e})")
                 logger.debug("TRACEBACK", exc_info=True)
                 time.sleep(15)
+
+    def is_file_handler(self, m: Message) -> bool: # Добавил эту функцию для проверки
+        state = self.get_state(m.chat.id, m.from_user.id)
+        return state is not None and state["state"] in self.file_handlers
+
+# END OF FILE FunPayCortex/tg_bot/bot.py

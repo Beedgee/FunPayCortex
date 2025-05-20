@@ -1,3 +1,5 @@
+# START OF FILE FunPayCortex-main/tg_bot/utils.py
+
 """
 В данном модуле написаны инструменты, которыми пользуется Telegram бот.
 """
@@ -152,7 +154,7 @@ def escape(text: str) -> str:
     if not isinstance(text, str): # Добавим проверку типа на всякий случай
         text = str(text)
     escape_characters = {
-        "&": "&",
+        "&": "&", # ИСПРАВЛЕНО: '&' должен заменяться на '&'
         "<": "<",
         ">": ">",
     }
@@ -265,30 +267,50 @@ def generate_profile_text(cortex_instance: Cortex) -> str:
     """
     account = cortex_instance.account
     balance = cortex_instance.balance
-    # Локализация заголовков и полей
-    # Заголовок: Информация об аккаунте {username}
-    # ID: {id}
-    # Незавершенных заказов: {active_sales}
-    # Баланс:
-    #   RUB: {total_rub}₽ (доступно: {available_rub}₽)
-    #   USD: {total_usd}$ (доступно: {available_usd}$)
-    #   EUR: {total_eur}€ (доступно: {available_eur}€)
-    # Обновлено: {last_update_time}
 
-    profile_header = _("cmd_profile") # "посмотреть статистику аккаунта" - можно изменить на "Статистика аккаунта"
-    if "посмотреть" in profile_header: # Убираем глагол, если он есть
+    profile_header = _("cmd_profile")
+    if "посмотреть" in profile_header.lower(): # Сделаем регистронезависимым
         profile_header = profile_header.split(" ",1)[1].capitalize()
+    elif "переглянути" in profile_header.lower(): # Для украинского
+        profile_header = profile_header.split(" ",1)[1].capitalize()
+    elif "view" in profile_header.lower(): # Для английского
+         profile_header = profile_header.split(" ",1)[1].capitalize()
+
+
+    # Используем ns_new_order ("{} Новый заказ") и извлекаем только "Новый заказ"
+    active_orders_label_key = "ns_new_order"
+    active_orders_label_full = _(active_orders_label_key, language=localizer.current_language)
+    # Предполагаем, что "{}" в начале, потом пробел, потом текст.
+    # Если формат другой, эту логику нужно будет скорректировать.
+    active_orders_text = active_orders_label_full.split(" ", 1)[1] if "{}" in active_orders_label_full.split(" ", 1)[0] else active_orders_label_full
+
+
+    # Извлекаем "Баланс:" из fpc_init, стараясь сохранить теги
+    fpc_init_text = _('fpc_init', language=localizer.current_language)
+    balance_label_text_raw = ""
+    for line in fpc_init_text.splitlines():
+        if "₽" in line and "$" in line and "€" in line and "Баланс:" in line: # Ищем строку с балансом
+            # Пытаемся извлечь "💰 <b><i>Баланс:</i></b>" или аналогичную часть
+            # Это всё ещё хрупко, лучше иметь отдельный ключ
+            parts = line.split("<code>",1) # Разделяем по первому вхождению <code>, чтобы получить часть с меткой
+            if parts:
+                balance_label_text_raw = parts[0].strip()
+            break
+    # Если не удалось извлечь с тегами, используем простой текст
+    if not balance_label_text_raw or "Баланс" not in balance_label_text_raw: # Убедимся что слово Баланс там есть
+        balance_label_text_raw = "<b><i>" + _("mm_balance", language=localizer.current_language) + ":</i></b>" # 'mm_balance' - новый ключ "Баланс"
+
 
     return f"""📊 <b>{profile_header} «{escape(account.username)}»</b>
 
 🆔 <b>ID:</b> <code>{account.id}</code>
-🛒 <b>{_('ntfc_new_order').split(':')[0].replace('💰 ','')}:</b> <code>{account.active_sales}</code> 
-{_('fpc_init').splitlines()[3].split(':')[0].strip()}:
+🛒 <b>{active_orders_text}:</b> <code>{account.active_sales}</code>
+{balance_label_text_raw}
     🇷🇺 <b>RUB:</b> <code>{balance.total_rub}₽</code> ({_('acc_balance_available', language=localizer.current_language)} <code>{balance.available_rub}₽</code>)
     🇺🇸 <b>USD:</b> <code>{balance.total_usd}$</code> ({_('acc_balance_available', language=localizer.current_language)} <code>{balance.available_usd}$</code>)
     🇪🇺 <b>EUR:</b> <code>{balance.total_eur}€</code> ({_('acc_balance_available', language=localizer.current_language)} <code>{balance.available_eur}€</code>)
 
-⏱️ <i>{_('gl_last_update')}:</i> <code>{time.strftime('%H:%M:%S %d.%m.%Y', time.localtime(account.last_update))}</code>"""
+⏱️ {_('gl_last_update')}: <code>{time.strftime('%H:%M:%S %d.%m.%Y', time.localtime(account.last_update))}</code>"""
     # Добавил ключ 'acc_balance_available' = "доступно" для локализации
 
 def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
@@ -340,7 +362,7 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
 🔢 <b>{_('gf_amount')}:</b> {products_amount_text}
 🗂️ <b>{_('ea_link_goods_file').replace('🔗 ','')}:</b> {file_info_text}
 
-⏱️ <i>{_('gl_last_update')}:</i> <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
+⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
 # Добавлены ключи для локализации:
 # 'acc_balance_available'
 # 'gf_infinity'
@@ -351,3 +373,4 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
 # 'gf_not_linked'
 # 'lot_info_header'
 # 'text_not_set'
+# END OF FILE FunPayCortex-main/tg_bot/utils.py
