@@ -106,7 +106,7 @@ class Cortex(object):
         self.account = FunPayAPI.Account(self.MAIN_CFG["FunPay"]["golden_key"],
                                          self.MAIN_CFG["FunPay"]["user_agent"],
                                          proxy=self.proxy,
-                                         locale=self.MAIN_CFG["FunPay"].get("locale", "ru")) # Добавляем locale
+                                         locale=self.MAIN_CFG["FunPay"].get("locale", "ru"))
         self.runner: FunPayAPI.Runner | None = None
         self.telegram: tg_bot.bot.TGBot | None = None
         self.running = False
@@ -177,8 +177,8 @@ class Cortex(object):
                 logger.error(_("crd_acc_get_timeout_err"))
             except (FunPayAPI.exceptions.UnauthorizedError, FunPayAPI.exceptions.RequestFailedError) as e:
                 logger.error(e.short_str())
-                logger.debug(f"TRACEBACK {e.short_str()}", exc_info=True) # Добавил exc_info
-            except Exception as e: # Ловим конкретное исключение
+                logger.debug(f"TRACEBACK {e.short_str()}", exc_info=True)
+            except Exception as e:
                 logger.error(_("crd_acc_get_unexpected_err") + f": {e}")
                 logger.debug("TRACEBACK", exc_info=True)
             logger.warning(_("crd_try_again_in_n_secs", 2))
@@ -198,8 +198,8 @@ class Cortex(object):
                 logger.error(_("crd_profile_get_timeout_err"))
             except FunPayAPI.exceptions.RequestFailedError as e:
                 logger.error(e.short_str())
-                logger.debug("TRACEBACK", exc_info=True) # Добавил exc_info
-            except Exception as e: # Ловим конкретное исключение
+                logger.debug("TRACEBACK", exc_info=True)
+            except Exception as e:
                 logger.error(_("crd_profile_get_unexpected_err") + f": {e}")
                 logger.debug("TRACEBACK", exc_info=True)
             current_attempts += 1
@@ -215,7 +215,7 @@ class Cortex(object):
             logger.critical("Критическая ошибка в логике __update_profile с infinite_polling.")
             return False
 
-        if profile is None: # Если профиль так и не был получен
+        if profile is None:
             logger.error("Не удалось получить профиль пользователя после всех попыток в __update_profile.")
             return False
 
@@ -259,10 +259,9 @@ class Cortex(object):
         next_call = float("inf")
         unique_categories = []
         seen_category_ids = set()
-        # Проверяем, есть ли self.profile и есть ли в нем лоты, перед тем как пытаться их поднимать
         if not self.profile or not self.profile.get_lots():
             logger.info("Нет лотов в профиле для поднятия. Пропуск цикла поднятия.")
-            return 300 # Проверить через 5 минут, вдруг появятся
+            return 300
 
         for subcat_obj in self.profile.get_sorted_lots(2).keys():
             if subcat_obj.category.id not in seen_category_ids:
@@ -292,7 +291,7 @@ class Cortex(object):
             raise_ok = False
             error_text_msg = ""
             time_delta_str = ""
-            exception_occurred = None # Для хранения исключения
+            exception_occurred = None
 
             try:
                 time.sleep(random.uniform(0.5, 1.5))
@@ -419,7 +418,7 @@ class Cortex(object):
             message_text = f"{self.MAIN_CFG['Other']['watermark']}\n" + message_text
         entities = self.parse_message_entities(message_text)
         if all(isinstance(i, float) for i in entities) or not entities:
-            return None # Возвращаем None, если нет сущностей для отправки
+            return None
         result = []
         for entity in entities:
             current_attempts = attempts
@@ -444,7 +443,7 @@ class Cortex(object):
                     elif isinstance(entity, float):
                         time.sleep(entity)
                     break
-                except Exception as ex: # Ловим общее исключение
+                except Exception as ex:
                     logger.warning(_("crd_msg_send_err", chat_id) + f": {ex}")
                     logger.debug("TRACEBACK", exc_info=True)
                     logger.info(_("crd_msg_attempts_left", current_attempts))
@@ -452,7 +451,7 @@ class Cortex(object):
                     time.sleep(1)
             else:
                 logger.error(_("crd_msg_no_more_attempts_err", chat_id))
-                return [] # Возвращаем пустой список при ошибке отправки после всех попыток
+                return []
         return result
 
     def get_exchange_rate(self, base_currency: types.Currency, target_currency: types.Currency, min_interval: int = 60):
@@ -464,7 +463,7 @@ class Cortex(object):
             return cached_rate
         cached_rate_reverse, cache_time_reverse = self.__exchange_rates.get((target_currency, base_currency), (None, 0))
         if cached_rate_reverse is not None and time.time() < cache_time_reverse + min_interval:
-            if cached_rate_reverse == 0: # Предотвращаем деление на ноль
+            if cached_rate_reverse == 0:
                 logger.error(f"Обратный курс для {target_currency.name} -> {base_currency.name} равен нулю. Невозможно рассчитать курс.")
                 return float('inf')
             return 1.0 / cached_rate_reverse
@@ -495,9 +494,9 @@ class Cortex(object):
                         final_rate = float('inf')
                     else:
                         final_rate = rate_to_target / rate_to_base
-                else: # Если валюты не совпадают, это неожиданно, пробуем еще раз
+                else:
                     logger.warning(f"Несовпадение валют аккаунта при расчете курса: {actual_acc_currency_after_base_req.name} vs {actual_acc_currency_after_target_req.name}. Попытка {attempt + 1}.")
-                    if attempt < 2: continue # Пробуем еще раз
+                    if attempt < 2: continue
                     raise Exception("Не удалось определить курс из-за непредсказуемой смены валюты аккаунта.")
 
 
@@ -522,7 +521,7 @@ class Cortex(object):
             except (FunPayAPI.exceptions.UnauthorizedError, FunPayAPI.exceptions.RequestFailedError) as e:
                 logger.error(e.short_str())
                 logger.debug("TRACEBACK", exc_info=True)
-            except Exception as e: # Ловим конкретное исключение
+            except Exception as e:
                 logger.error(_("crd_session_unexpected_err") + f": {e}")
                 logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
@@ -595,13 +594,13 @@ class Cortex(object):
             self.telegram.setup_commands()
             try:
                 self.telegram.edit_bot()
-            except AttributeError as e: # Ловим AttributeError
+            except AttributeError as e:
                 logger.warning("Произошла ошибка при изменении бота Telegram (AttributeError). Обновляю библиотеку pyTelegramBotAPI...")
                 logger.debug(f"Details: {e}", exc_info=True)
                 try:
                     main(["install", "-U", "pytelegrambotapi>=4.15.2"])
                     logger.info("Библиотека pyTelegramBotAPI обновлена.")
-                except Exception as install_e: # Ловим исключение при установке
+                except Exception as install_e:
                     logger.warning(f"Произошла ошибка при обновлении библиотеки pyTelegramBotAPI: {install_e}.")
                     logger.debug("TRACEBACK", exc_info=True)
             except Exception as e:
@@ -610,9 +609,9 @@ class Cortex(object):
             Thread(target=self.telegram.run, daemon=True).start()
         self.__init_account()
         self.runner = FunPayAPI.Runner(self.account,
-                                       disable_message_requests=self.old_mode_enabled, # Передаем флаг
-                                       disabled_order_requests=False, # Оставляем включенным
-                                       disabled_buyer_viewing_requests=True) # По умолчанию выключено
+                                       disable_message_requests=self.old_mode_enabled,
+                                       disabled_order_requests=False,
+                                       disabled_buyer_viewing_requests=True)
         self.__update_profile()
         self.run_handlers(self.post_init_handlers, (self,))
         return self
@@ -650,7 +649,7 @@ class Cortex(object):
         if self.old_mode_enabled:
             self.runner.last_messages_ids = {}
             self.runner.by_bot_ids = {}
-        else: # При переключении на новый режим, нужно инициализировать last_messages_ids
+        else:
             self.runner.last_messages_ids = {k: v[0] for k, v in self.runner.runner_last_messages.items()}
 
 

@@ -15,7 +15,7 @@ from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 from tg_bot import CBT, MENU_CFG
 from tg_bot.utils import NotificationTypes, bool_to_text, add_navigation_buttons
 
-import Utils # Renamed from Utils to Utils as per original import (assuming it's a package)
+import Utils.cortex_tools
 from locales.localizer import Localizer
 
 import logging
@@ -37,7 +37,6 @@ def power_off(instance_id: int, state: int) -> K:
     :return: объект клавиатуры выключения бота.
     """
     kb = K()
-    # Тексты кнопок gl_yes, gl_no, gl_yep обновятся из ru.py
     if state == 0:
         kb.row(B(_("gl_yes"), None, f"{CBT.SHUT_DOWN}:1:{instance_id}"),
                B(_("gl_no"), None, CBT.CANCEL_SHUTTING_DOWN))
@@ -58,12 +57,12 @@ def power_off(instance_id: int, state: int) -> K:
         kb.add(*buttons, row_width=5)
     elif state == 4:
         yes_button_num = random.randint(1, 40)
-        yes_button = B(_("gl_no"), None, f"{CBT.SHUT_DOWN}:5:{instance_id}") # Да = Нет
-        no_button = B(_("gl_yes"), None, CBT.CANCEL_SHUTTING_DOWN) # Нет = Да
+        yes_button = B(_("gl_no"), None, f"{CBT.SHUT_DOWN}:5:{instance_id}")
+        no_button = B(_("gl_yes"), None, CBT.CANCEL_SHUTTING_DOWN)
         buttons = [*[yes_button] * (yes_button_num - 1), no_button, *[yes_button] * (40 - yes_button_num)]
         kb.add(*buttons, row_width=7)
     elif state == 5:
-        kb.add(B(_("gl_yep"), None, f"{CBT.SHUT_DOWN}:6:{instance_id}")) # gl_yep -> "Ага ✅"
+        kb.add(B(_("gl_yep"), None, f"{CBT.SHUT_DOWN}:6:{instance_id}"))
     return kb
 
 
@@ -91,7 +90,7 @@ def main_settings(c: Cortex) -> K:
     """
     Генерирует клавиатуру основных переключателей (CBT.CATEGORY:main).
 
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :return: объект клавиатуры основных переключателей.
     """
     p = f"{CBT.SWITCH}:FunPay"
@@ -116,7 +115,7 @@ def main_settings(c: Cortex) -> K:
 def new_message_view_settings(c: Cortex) -> K:
     """
     Генерирует клавиатуру настроек вида уведомлений о новых сообщениях (CBT.CATEGORY:newMessageView).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :return: объект клавиатуры настроек вида уведомлений о новых сообщениях.
     """
     p = f"{CBT.SWITCH}:NewMessageView"
@@ -139,7 +138,7 @@ def new_message_view_settings(c: Cortex) -> K:
 def greeting_settings(c: Cortex):
     """
     Генерирует клавиатуру настроек приветственного сообщения (CBT.CATEGORY:greetings).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :return: объект клавиатуры настроек приветственного сообщения.
     """
     p = f"{CBT.SWITCH}:Greetings"
@@ -161,7 +160,7 @@ def greeting_settings(c: Cortex):
 def order_confirm_reply_settings(c: Cortex):
     """
     Генерирует клавиатуру настроек ответа на подтверждение заказа (CBT.CATEGORY:orderConfirm).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :return: объект клавиатуры настроек ответа на подтверждение заказа.
     """
     kb = K() \
@@ -177,7 +176,7 @@ def order_confirm_reply_settings(c: Cortex):
 def authorized_users(c: Cortex, offset: int):
     """
     Генерирует клавиатуру со списком авторизованных пользователей (CBT.AUTHORIZED_USERS:<offset>).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param offset: смещение списка пользователей.
     :return: объект клавиатуры со списком пользователей.
     """
@@ -224,7 +223,7 @@ def authorized_user_settings(c: Cortex, user_id: int, offset: int, user_link: bo
 def proxy(c: Cortex, offset: int, proxies: dict[str, bool]):
     """
     Генерирует клавиатуру со списком прокси (CBT.PROXY:<offset>).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param offset: смещение списка прокси.
     :param proxies: {прокси: валидность прокси}.
     :return: объект клавиатуры со списком прокси.
@@ -267,7 +266,7 @@ def proxy(c: Cortex, offset: int, proxies: dict[str, bool]):
 def review_reply_settings(c: Cortex):
     """
     Генерирует клавиатуру настроек ответа на отзыв (CBT.CATEGORY:reviewReply).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :return: объект клавиатуры настроек ответа на отзыв.
     """
     kb = K()
@@ -294,7 +293,7 @@ def review_reply_settings(c: Cortex):
 def notifications_settings(c: Cortex, chat_id: int) -> K:
     """
     Генерирует клавиатуру настроек уведомлений (CBT.CATEGORY:telegram).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param chat_id: ID чата, в котором вызвана клавиатура.
     :return: объект клавиатуры настроек уведомлений.
     """
@@ -323,7 +322,7 @@ def notifications_settings(c: Cortex, chat_id: int) -> K:
 def announcements_settings(c: Cortex, chat_id: int):
     """
     Генерирует клавиатуру настроек уведомлений объявлений.
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param chat_id: ID чата, в котором вызвана клавиатура.
     :return: объект клавиатуры настроек уведомлений объявлений.
     """
@@ -342,7 +341,7 @@ def announcements_settings(c: Cortex, chat_id: int):
 def blacklist_settings(c: Cortex) -> K:
     """
     Генерирует клавиатуру настроек черного списка (CBT.CATEGORY:blockList).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :return: объект клавиатуры настроек черного списка.
     """
     p = f"{CBT.SWITCH}:BlockList"
@@ -363,7 +362,7 @@ def blacklist_settings(c: Cortex) -> K:
 def commands_list(c: Cortex, offset: int) -> K:
     """
     Генерирует клавиатуру со списком команд (CBT.CMD_LIST:<offset>).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param offset: смещение списка команд.
     :return: объект клавиатуры со списком команд.
     """
@@ -393,7 +392,7 @@ def commands_list(c: Cortex, offset: int) -> K:
 def edit_command(c: Cortex, command_index: int, offset: int) -> K:
     """
     Генерирует клавиатуру изменения параметров команды (CBT.EDIT_CMD:<command_num>:<offset>).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param command_index: номер команды.
     :param offset: смещение списка команд.
     :return объект клавиатуры изменения параметров команды.
@@ -474,7 +473,7 @@ def products_file_edit(file_number: int, offset: int, confirmation: bool = False
 def lots_list(cortex_instance: Cortex, offset: int) -> K:
     """
     Создает клавиатуру со списком лотов с автовыдачей. (lots:<offset>).
-    :param cortex_instance: объект FPCortex.
+    :param cortex_instance: объект Cortex.
     :param offset: смещение списка лотов.
     :return: объект клавиатуры со списком лотов с автовыдачей.
     """
@@ -502,7 +501,7 @@ def lots_list(cortex_instance: Cortex, offset: int) -> K:
 def funpay_lots_list(c: Cortex, offset: int):
     """
     Генерирует клавиатуру со списком лотов текущего профиля (funpay_lots:<offset>).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param offset: смещение списка слотов.
     :return: объект клавиатуры со списком лотов текущего профиля.
     """
@@ -535,7 +534,7 @@ def funpay_lots_list(c: Cortex, offset: int):
 def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
     """
     Генерирует клавиатуру изменения лота (CBT.EDIT_AD_LOT:<lot_num>:<offset>).
-    :param c: экземпляр FPCortex.
+    :param c: экземпляр Cortex.
     :param lot_number: номер лота в списке AD_CFG.sections().
     :param offset: смещение списка слотов для кнопки "Назад".
     :return: объект клавиатуры изменения лота.
@@ -649,7 +648,7 @@ def reply(node_id: int, username: str, again: bool = False, extend: bool = False
 def templates_list(c: Cortex, offset: int) -> K:
     """
     Генерирует клавиатуру со списком шаблонов ответов. (CBT.TMPLT_LIST:<offset>).
-    :param c: экземпляр FPCortex.
+    :param c: экземпляр Cortex.
     :param offset: смещение списка шаблонов.
     :return: объект клавиатуры со списком шаблонов ответов.
     """
@@ -677,7 +676,7 @@ def templates_list(c: Cortex, offset: int) -> K:
 def edit_template(c: Cortex, template_index: int, offset: int) -> K:
     """
     Генерирует клавиатуру изменения шаблона ответа (CBT.EDIT_TMPLT:<template_index>:<offset>).
-    :param c: экземпляр FPCortex.
+    :param c: экземпляр Cortex.
     :param template_index: числовой индекс шаблона ответа.
     :param offset: смещение списка шаблонов ответа.
     :return: объект клавиатуры изменения шаблона ответа.
@@ -693,7 +692,7 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
     """
     Генерирует клавиатуру со списком шаблонов ответов для быстрого ответа.
     (CBT.TMPLT_LIST_ANS_MODE:{offset}:{node_id}:{username}:{prev_page}:{extra}).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param offset: смещение списка шаблонов ответа.
     :param node_id: ID чата, в который нужно отправить шаблон.
     :param username: никнейм пользователя, с которым ведется переписка.
@@ -738,7 +737,7 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
 def plugins_list(c: Cortex, offset: int):
     """
     Генерирует клавиатуру со списком плагинов (CBT.PLUGINS_LIST:<offset>).
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param offset: смещение списка плагинов.
     :return: объект клавиатуры со списком плагинов.
     """
@@ -770,7 +769,7 @@ def plugins_list(c: Cortex, offset: int):
 def edit_plugin(c: Cortex, uuid: str, offset: int, ask_to_delete: bool = False):
     """
     Генерирует клавиатуру управления плагином.
-    :param c: объект FPCortex.
+    :param c: объект Cortex.
     :param uuid: UUID плагина.
     :param offset: смещение списка плагинов.
     :param ask_to_delete: вставить ли подтверждение удаления плагина?

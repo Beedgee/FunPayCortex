@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/bot.py
+# START OF FILE FunPayCortex/tg_bot/bot.py
 
 """
 В данном модуле написан Telegram бот.
@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-import re # Убедитесь, что re импортирован
+import re
 from typing import TYPE_CHECKING
 
 from FunPayAPI import Account
@@ -24,7 +24,7 @@ import psutil
 import telebot
 from telebot.apihelper import ApiTelegramException
 import logging
-import requests # Добавлен импорт requests
+import requests
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery, BotCommand, \
     InputFile
@@ -38,11 +38,10 @@ _ = localizer.translate
 telebot.apihelper.ENABLE_MIDDLEWARE = True
 
 
-# НОВАЯ ФУНКЦИЯ ДЛЯ ОЧИСТКИ HTML-КОММЕНТАРИЕВ
 def strip_html_comments(html_string: str) -> str:
     """Удаляет HTML-комментарии из строки."""
     if not isinstance(html_string, str):
-        return str(html_string) # На всякий случай, если придет не строка
+        return str(html_string)
     return re.sub(r"<!--(.*?)-->", "", html_string, flags=re.DOTALL)
 
 class TGBot:
@@ -365,7 +364,7 @@ class TGBot:
 
     def act_edit_watermark(self, m: Message):
         watermark = self.cortex.MAIN_CFG["Other"]["watermark"]
-        watermark_display = f"\n\n{_('crd_msg_sent', '').split(' в чат')[0]} {_('v_edit_watermark_current', language=localizer.current_language)}: <code>{utils.escape(watermark)}</code>" if watermark else ""
+        watermark_display = f"\n\n{_('crd_msg_sent', '').split(' в чат')[0]} {_('v_edit_watermark_current')}: <code>{utils.escape(watermark)}</code>" if watermark else ""
         result = self.bot.send_message(m.chat.id, _("act_edit_watermark").format(watermark_display),
                                        reply_markup=skb.CLEAR_STATE_BTN())
         self.set_state(m.chat.id, result.id, m.from_user.id, CBT.EDIT_WATERMARK)
@@ -376,9 +375,9 @@ class TGBot:
         if re.fullmatch(r"\[[a-zA-Z]+]", watermark_text):
             self.bot.reply_to(m, _("watermark_error"))
             return
-        preview_html = f"<a href=\"https://sfunpay.com/s/chat/zb/wl/zbwl4vwc8cc1wsftqnx5.jpg\">⁠</a>" # Используем невидимый символ
+        preview_html = f"<a href=\"https://sfunpay.com/s/chat/zb/wl/zbwl4vwc8cc1wsftqnx5.jpg\">⁠</a>"
         if any(i.lower() in watermark_text.lower() for i in ("🧠", "fpcx", "cortex", "кортекс")):
-            preview_html = f"<a href=\"https://sfunpay.com/s/chat/kd/8i/kd8isyquw660kcueck3g.jpg\">⁠</a>" # Используем невидимый символ
+            preview_html = f"<a href=\"https://sfunpay.com/s/chat/kd/8i/kd8isyquw660kcueck3g.jpg\">⁠</a>"
         self.cortex.MAIN_CFG["Other"]["watermark"] = watermark_text
         self.cortex.save_config(self.cortex.MAIN_CFG, "configs/_main.cfg")
         if watermark_text:
@@ -435,7 +434,6 @@ class TGBot:
 
     def check_updates(self, m: Message):
         curr_tag = f"v{self.cortex.VERSION}"
-        # self.bot.send_message(m.chat.id, _("update_lasted", curr_tag) + "\n\nℹ️ Следите за новостями на канале @FunPayCortex.")
         releases = updater.get_new_releases(curr_tag)
         if isinstance(releases, int):
             errors = {
@@ -446,7 +444,6 @@ class TGBot:
             self.bot.send_message(m.chat.id, _(errors[releases][0], *errors[releases][1]))
             return
         for release in releases:
-            # ИСПРАВЛЕНИЕ: Очищаем описание релиза от HTML-комментариев
             cleaned_description = strip_html_comments(release.description)
             self.bot.send_message(m.chat.id, _("update_available", f"{release.name}\n\n{cleaned_description}"))
             time.sleep(1)
@@ -480,7 +477,6 @@ class TGBot:
         return True
 
     def update(self, m: Message):
-        # self.bot.send_message(m.chat.id, _("update_lasted", f"v{self.cortex.VERSION}") + "\n\nℹ️ Следите за новостями на канале @FunPayCortex.")
         curr_tag = f"v{self.cortex.VERSION}"
         releases = updater.get_new_releases(curr_tag)
         if isinstance(releases, int):
@@ -516,7 +512,7 @@ class TGBot:
         ram_info = psutil.virtual_memory()
         cpu_usage_per_core_list = psutil.cpu_percent(percpu=True)
         cpu_usage_per_core_str = "\n".join(
-            f"    {_('v_cpu_core', language=localizer.current_language)} {i+1}:  <code>{usage}%</code>" for i, usage in enumerate(cpu_usage_per_core_list))
+            f"    {_('v_cpu_core')} {i+1}:  <code>{usage}%</code>" for i, usage in enumerate(cpu_usage_per_core_list))
         self.bot.send_message(m.chat.id, _("sys_info", cpu_usage_per_core_str, psutil.Process().cpu_percent(),
                                            ram_info.total // 1048576, ram_info.used // 1048576, ram_info.free // 1048576,
                                            psutil.Process().memory_info().rss // 1048576,
@@ -733,7 +729,7 @@ class TGBot:
                  message_content_text = f"<a href=\"{msg_item.image_link}\">" \
                                      f"{utils.escape(msg_item.image_name) if self.cortex.MAIN_CFG['NewMessageView'].getboolean('showImageName') and not (msg_item.author_id == self.cortex.account.id and msg_item.by_bot) else _('photo')}</a>"
 
-            text_to_send += f"{author_prefix}{utils.escape(message_content_text or '')}\n\n" # Экранируем все сообщение
+            text_to_send += f"{author_prefix}{utils.escape(message_content_text or '')}\n\n"
 
             last_author_id = msg_item.author_id
             last_by_bot_flag = msg_item.by_bot
@@ -741,7 +737,7 @@ class TGBot:
             last_by_fpcortex = msg_item.by_bot and msg_item.author_id == self.cortex.account.id
 
         text_to_send = text_to_send.strip()
-        if not text_to_send: text_to_send = f"<i>({_('no_messages_to_display', language=c.from_user.language_code)})</i>"
+        if not text_to_send: text_to_send = f"<i>({_('no_messages_to_display')})</i>"
 
         try:
             self.bot.edit_message_text(text_to_send, c.message.chat.id, c.message.id,
@@ -826,7 +822,7 @@ class TGBot:
 
 
     def open_cp(self, c: CallbackQuery):
-        desc_text = _("desc_main", language=c.from_user.language_code)
+        desc_text = _("desc_main")
         if c.message.content_type == 'text':
             self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
                                    reply_markup=skb.SETTINGS_SECTIONS())
@@ -837,7 +833,7 @@ class TGBot:
         self.bot.answer_callback_query(c.id)
 
     def open_cp2(self, c: CallbackQuery):
-        desc_text = _("desc_main", language=c.from_user.language_code)
+        desc_text = _("desc_main")
         if c.message.content_type == 'text':
             self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
                                    reply_markup=skb.SETTINGS_SECTIONS_2())
@@ -915,17 +911,17 @@ class TGBot:
         section_key = c.data.split(":")[1]
         user_lang = c.from_user.language_code
         sections_map = {
-            "lang": (_("desc_lang", language=user_lang), kb.language_settings, [self.cortex]),
-            "main": (_("desc_gs", language=user_lang), kb.main_settings, [self.cortex]),
-            "tg": (_("desc_ns", c.message.chat.id, language=user_lang), kb.notifications_settings, [self.cortex, c.message.chat.id]),
-            "bl": (_("desc_bl", language=user_lang), kb.blacklist_settings, [self.cortex]),
-            "ar": (_("desc_ar", language=user_lang), skb.AR_SETTINGS, []),
-            "ad": (_("desc_ad", language=user_lang), skb.AD_SETTINGS, []),
-            "mv": (_("desc_mv", language=user_lang), kb.new_message_view_settings, [self.cortex]),
-            "rr": (_("desc_or", language=user_lang), kb.review_reply_settings, [self.cortex]),
-            "gr": (_("desc_gr", utils.escape(self.cortex.MAIN_CFG['Greetings']['greetingsText']), language=user_lang),
+            "lang": (_("desc_lang"), kb.language_settings, [self.cortex]),
+            "main": (_("desc_gs"), kb.main_settings, [self.cortex]),
+            "tg": (_("desc_ns", c.message.chat.id), kb.notifications_settings, [self.cortex, c.message.chat.id]),
+            "bl": (_("desc_bl"), kb.blacklist_settings, [self.cortex]),
+            "ar": (_("desc_ar"), skb.AR_SETTINGS, []),
+            "ad": (_("desc_ad"), skb.AD_SETTINGS, []),
+            "mv": (_("desc_mv"), kb.new_message_view_settings, [self.cortex]),
+            "rr": (_("desc_or"), kb.review_reply_settings, [self.cortex]),
+            "gr": (_("desc_gr", utils.escape(self.cortex.MAIN_CFG['Greetings']['greetingsText'])),
                    kb.greeting_settings, [self.cortex]),
-            "oc": (_("desc_oc", utils.escape(self.cortex.MAIN_CFG['OrderConfirm']['replyText']), language=user_lang),
+            "oc": (_("desc_oc", utils.escape(self.cortex.MAIN_CFG['OrderConfirm']['replyText'])),
                    kb.order_confirm_reply_settings, [self.cortex])
         }
         current_section_data = sections_map.get(section_key)
@@ -938,7 +934,7 @@ class TGBot:
                 except: pass
                 self.bot.send_message(c.message.chat.id, desc_text, reply_markup=kb_generator(*kb_args))
         else:
-            self.bot.answer_callback_query(c.id, _("unknown_action", language=user_lang), show_alert=True)
+            self.bot.answer_callback_query(c.id, _("unknown_action"), show_alert=True)
             return
         self.bot.answer_callback_query(c.id)
 
@@ -1231,8 +1227,8 @@ class TGBot:
                 logger.debug("TRACEBACK", exc_info=True)
                 time.sleep(15)
 
-    def is_file_handler(self, m: Message) -> bool: # Добавил эту функцию для проверки
+    def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
 
-# END OF FILE FunPayCortex-main/tg_bot/bot.py
+# END OF FILE FunPayCortex/tg_bot/bot.py

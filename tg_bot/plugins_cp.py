@@ -43,26 +43,12 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
 
     def open_plugins_list(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
-        # ИЗМЕНЕНИЕ: Добавляем ссылку на канал с плагинами в описание
-        plugins_channel_link = "https://t.me/FunPayCortex" # Ваша ссылка
-        desc_plugins_text = _("desc_pl") + f"\n\n🔗 <b>{_('pl_safe_source', language=localizer.current_language)}:</b> <a href=\"{plugins_channel_link}\">{_('pl_channel_button', language=localizer.current_language)}</a>"
-        # Добавьте ключи в файлы локализации:
-        # pl_safe_source = "Источник безопасных плагинов"
-        # pl_channel_button = "Канал FunPay Cortex"
-        # (примеры для ru.py, адаптируйте для других языков)
-        # Например, в ru.py:
-        # pl_safe_source = "Источник безопасных плагинов"
-        # pl_channel_button = "Канал FunPay Cortex"
-        # В en.py:
-        # pl_safe_source = "Source of safe plugins"
-        # pl_channel_button = "FunPay Cortex Channel"
-        # В uk.py:
-        # pl_safe_source = "Джерело безпечних плагінів"
-        # pl_channel_button = "Канал FunPay Cortex"
+        plugins_channel_link = "https://t.me/FunPayCortex"
+        desc_plugins_text = _("desc_pl") + f"\n\n🔗 <b>{_('pl_safe_source')}:</b> <a href=\"{plugins_channel_link}\">{_('pl_channel_button')}</a>"
 
         bot.edit_message_text(desc_plugins_text, c.message.chat.id, c.message.id,
                               reply_markup=keyboards.plugins_list(cortex_instance, offset),
-                              disable_web_page_preview=True) # Отключаем предпросмотр ссылки
+                              disable_web_page_preview=True)
         bot.answer_callback_query(c.id)
 
     def open_edit_plugin_cp(c: CallbackQuery):
@@ -104,14 +90,14 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
         plugin_obj = cortex_instance.plugins[plugin_uuid]
 
         if not plugin_obj.commands:
-            bot.answer_callback_query(c.id, _("pl_no_commands", language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("pl_no_commands"), show_alert=True)
             return
 
         commands_text_list = []
         for cmd_key, help_text_key_in_plugin in plugin_obj.commands.items():
             translated_help = localizer.plugin_translate(plugin_obj.uuid, help_text_key_in_plugin)
             if translated_help == f"{plugin_obj.uuid}_{help_text_key_in_plugin}" or translated_help == help_text_key_in_plugin:
-                 final_help_text = _(help_text_key_in_plugin, language=localizer.current_language) # Пытаемся перевести общий ключ
+                 final_help_text = _(help_text_key_in_plugin)
             else:
                  final_help_text = translated_help
             commands_text_list.append(f"<code>/{utils.escape(cmd_key)}</code> - {utils.escape(final_help_text)}")
@@ -198,7 +184,7 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
             except Exception as e:
                 logger.error(_("log_pl_delete_handler_err", plugin_name_for_log_and_msg))
                 logger.debug(f"Ошибка в delete_handler плагина {plugin_name_for_log_and_msg}: {e}", exc_info=True)
-                bot.answer_callback_query(c.id, _("pl_delete_handler_failed", plugin_name=utils.escape(plugin_name_for_log_and_msg), language=localizer.current_language), show_alert=True)
+                bot.answer_callback_query(c.id, _("pl_delete_handler_failed", plugin_name=utils.escape(plugin_name_for_log_and_msg)), show_alert=True)
 
         try:
             os.remove(plugin_path_to_delete)
@@ -212,13 +198,13 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
 
             c.data = f"{CBT.PLUGINS_LIST}:{new_offset}"
             open_plugins_list(c)
-            bot.answer_callback_query(c.id, _("pl_deleted_successfully", plugin_name=utils.escape(plugin_name_for_log_and_msg), language=localizer.current_language), show_alert=True)
-        except OSError as e: # Ловим ошибки ОС при удалении файла
+            bot.answer_callback_query(c.id, _("pl_deleted_successfully", plugin_name=utils.escape(plugin_name_for_log_and_msg)), show_alert=True)
+        except OSError as e:
             logger.error(f"Не удалось удалить файл плагина {plugin_path_to_delete}: {e}")
-            bot.answer_callback_query(c.id, _("pl_file_delete_error", plugin_path=utils.escape(plugin_path_to_delete), language=localizer.current_language) + f" (OS Error: {e.strerror})", show_alert=True)
-        except Exception as e: # Общие ошибки
+            bot.answer_callback_query(c.id, _("pl_file_delete_error", plugin_path=utils.escape(plugin_path_to_delete)) + f" (OS Error: {e.strerror})", show_alert=True)
+        except Exception as e:
             logger.error(f"Непредвиденная ошибка при удалении плагина {plugin_path_to_delete}: {e}", exc_info=True)
-            bot.answer_callback_query(c.id, _("pl_file_delete_error", plugin_path=utils.escape(plugin_path_to_delete), language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("pl_file_delete_error", plugin_path=utils.escape(plugin_path_to_delete)), show_alert=True)
 
 
     def act_upload_plugin(obj: CallbackQuery | Message):

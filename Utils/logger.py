@@ -136,7 +136,7 @@ LOGGER_CONFIG = {
             "handlers": ["cli_handler", "file_handler"],
             "level": "DEBUG"
         },
-        "FPC": { # Keep logger name FPC? Or rename to FPCortex?
+        "FPC": {
             "handlers": ["cli_handler", "file_handler"],
             "level": "DEBUG"
         },

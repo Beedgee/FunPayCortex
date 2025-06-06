@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/Utils/cardinal_tools.py
+# START OF FILE FunPayCortex/Utils/cortex_tools.py
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -9,7 +9,7 @@ import requests
 from locales.localizer import Localizer
 
 if TYPE_CHECKING:
-    from cardinal import Cardinal # Will be renamed to Cortex later
+    from cortex import Cortex
 
 import FunPayAPI.types
 
@@ -26,7 +26,7 @@ import logging
 
 PHOTO_RE = re.compile(r'\$photo=[\d]+')
 ENTITY_RE = re.compile(r"\$photo=\d+|\$new|(\$sleep=(\d+\.\d+|\d+))")
-logger = logging.getLogger("FPC.cardinal_tools") # Keep logger name for compatibility? Or rename to "FPCortex"?
+logger = logging.getLogger("FPC.cortex_tools")
 localizer = Localizer()
 _ = localizer.translate
 
@@ -118,7 +118,7 @@ def validate_proxy(proxy: str):
                 or not ip.replace(".", "").isdigit() or not 0 <= int(port) <= 65535:
             raise Exception()
     except:
-        raise ValueError("Прокси должны иметь формат login:password@ip:port или ip:port")  # locale
+        raise ValueError("Прокси должны иметь формат login:password@ip:port или ip:port")
     return login, password, ip, port
 
 
@@ -208,7 +208,7 @@ def load_old_users(greetings_cooldown: float) -> dict[int, float]:
         users = json.loads(users)
     except json.decoder.JSONDecodeError:
         return dict()
-    # todo убрать позже, конвертация для старых версий кардинала/кортекса
+    
     if type(users) == list:
         users = {user: time.time() for user in users}
     else:
@@ -218,7 +218,7 @@ def load_old_users(greetings_cooldown: float) -> dict[int, float]:
     return users
 
 
-def create_greeting_text(cortex_instance: Cardinal): # Renamed variable
+def create_greeting_text(cortex_instance: Cortex):
     """
     Генерирует приветствие для вывода в консоль после загрузки данных о пользователе.
     """
@@ -226,7 +226,7 @@ def create_greeting_text(cortex_instance: Cardinal): # Renamed variable
     balance = cortex_instance.balance
     current_time = datetime.now()
     if current_time.hour < 4:
-        greetings = "Какая прекрасная ночь"  # locale
+        greetings = "Какая прекрасная ночь"
     elif current_time.hour < 12:
         greetings = "Доброе утро"
     elif current_time.hour < 17:
@@ -265,7 +265,7 @@ def time_to_str(time_: int):
     minutes = (time_ - days * 86400 - hours * 3600) // 60
     seconds = time_ - days * 86400 - hours * 3600 - minutes * 60
 
-    if not any([days, hours, minutes, seconds]):  # locale
+    if not any([days, hours, minutes, seconds]):
         return "0 сек"
     time_str = ""
     if days:
@@ -292,7 +292,7 @@ def get_month_name(month_number: int) -> str:
         "Апреля", "Мая", "Июня",
         "Июля", "Августа", "Сентября",
         "Октября", "Ноября", "Декабря"
-    ]  # todo локализация
+    ]
     if month_number > len(months):
         return months[0]
     return months[month_number - 1]
@@ -366,7 +366,7 @@ def format_msg_text(text: str, obj: FunPayAPI.types.Message | FunPayAPI.types.Ch
     month_name = get_month_name(date_obj.month)
     date = date_obj.strftime("%d.%m.%Y")
     str_date = f"{date_obj.day} {month_name}"
-    str_full_date = str_date + f" {date_obj.year} года"  # locale
+    str_full_date = str_date + f" {date_obj.year} года"
 
     time_ = date_obj.strftime("%H:%M")
     time_full = date_obj.strftime("%H:%M:%S")
@@ -405,7 +405,7 @@ def format_order_text(text: str, order: FunPayAPI.types.OrderShortcut | FunPayAP
     month_name = get_month_name(date_obj.month)
     date = date_obj.strftime("%d.%m.%Y")
     str_date = f"{date_obj.day} {month_name}"
-    str_full_date = str_date + f" {date_obj.year} года"  # locale
+    str_full_date = str_date + f" {date_obj.year} года"
     time_ = date_obj.strftime("%H:%M")
     time_full = date_obj.strftime("%H:%M:%S")
     game = subcategory_fullname = subcategory = ""
@@ -418,7 +418,7 @@ def format_order_text(text: str, order: FunPayAPI.types.OrderShortcut | FunPayAP
             game = order.subcategory.category.name
             subcategory = order.subcategory.name
     except:
-        logger.warning("Произошла ошибка при парсинге игры из заказа")  # locale
+        logger.warning("Произошла ошибка при парсинге игры из заказа")
         logger.debug("TRACEBACK", exc_info=True)
     description = order.description if isinstance(order,
                                                   FunPayAPI.types.OrderShortcut) else order.short_description if order.short_description else ""
@@ -449,7 +449,7 @@ def format_order_text(text: str, order: FunPayAPI.types.OrderShortcut | FunPayAP
 
 def restart_program():
     """
-    Полный перезапуск FPC.
+    Полный перезапуск FPCortex.
     """
     python = sys.executable
     os.execl(python, python, *sys.argv)
@@ -465,7 +465,7 @@ def restart_program():
 
 def shut_down():
     """
-    Полное отключение FPC.
+    Полное отключение FPCortex.
     """
     try:
         process = psutil.Process()
@@ -499,4 +499,4 @@ def hash_password(password: str) -> str:
 def check_password(password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed_password.encode())  # Кодируем для проверки
 
-# END OF FILE FunPayCortex/Utils/cardinal_tools.py
+# END OF FILE FunPayCortex/Utils/cortex_tools.py

@@ -22,13 +22,13 @@ default_config = {
         "autoRestore": "0",
         "autoDisable": "0",
         "oldMsgGetMode": "0",
-        "keepSentMessagesUnread": "0", # Добавил этот параметр, если его нет в default_config
+        "keepSentMessagesUnread": "0",
         "locale": "ru"
     },
     "Telegram": {
         "enabled": "0",
         "token": "",
-        "secretKeyHash": "УстановитеСвойПароль", # Изменено для ясности
+        "secretKeyHash": "УстановитеСвойПароль",
         "blockLogin": "0"
     },
 
@@ -83,11 +83,11 @@ default_config = {
         "login": "",
         "password": "",
         "check": "0",
-        "checkInterval": "3600" # Добавил интервал проверки прокси по умолчанию (1 час)
+        "checkInterval": "3600"
     },
 
     "Other": {
-        "watermark": "🧠 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🤖", # Обновленная вотермарка
+        "watermark": "🧠 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🤖",
         "requestsDelay": "4",
         "language": "ru"
     }
@@ -154,13 +154,13 @@ def first_setup():
               f"Если хочешь, ты можешь указать свой User-agent (введи в Google \"my user agent\"). Или можешь просто нажать Enter. "
               f"{Fore.RED}¯\(°_o)/¯{Style.RESET_ALL}")
         user_agent = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
-        if contains_russian(user_agent): # Небольшая валидация
+        if contains_russian(user_agent):
             print(
                 f"\n{Fore.CYAN}{Style.BRIGHT}User-agent обычно не содержит русских букв. Уверен? Если да, введи еще раз, или оставь пустым. {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
             confirm_ua = input(f"{Fore.MAGENTA}{Style.BRIGHT}Повтори User-agent или нажми Enter, чтобы пропустить: {Style.RESET_ALL}").strip()
-            if confirm_ua != user_agent and confirm_ua != "": # Если не подтвердил и не пропустил
+            if confirm_ua != user_agent and confirm_ua != "":
                 continue
-            user_agent = confirm_ua # Используем подтвержденное значение или пустое
+            user_agent = confirm_ua
         if user_agent:
             config.set("FunPay", "user_agent", user_agent)
         break
@@ -173,13 +173,8 @@ def first_setup():
         try:
             if not token or not token.split(":")[0].isdigit():
                 raise ValueError("Неправильный формат токена")
-            test_bot = telebot.TeleBot(token, threaded=False) # threaded=False для теста
+            test_bot = telebot.TeleBot(token, threaded=False)
             username = test_bot.get_me().username
-            # Можно убрать проверку на funpay в начале, если не нужно
-            # if not username.lower().startswith("funpay"):
-            #     print(
-            #         f"\n{Fore.CYAN}{Style.BRIGHT}@username бота (@{username}) должен начинаться с \"funpay\"! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
-            #     continue
         except Exception as ex:
             s = ""
             if str(ex):
@@ -210,18 +205,18 @@ def first_setup():
         print(f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}"
               f"Если хочешь использовать IPv4 прокси – укажи их в формате login:password@ip:port или ip:port. Если нет - просто нажми Enter. "
               f"{Fore.RED}(* ^ ω ^){Style.RESET_ALL}")
-        proxy_input = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip() # Переименовал переменную
+        proxy_input = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
         if proxy_input:
             try:
-                login, password_proxy, ip, port_proxy = validate_proxy(proxy_input) # Переименовал переменные
+                login, password_proxy, ip, port_proxy = validate_proxy(proxy_input)
                 config.set("Proxy", "enable", "1")
-                config.set("Proxy", "check", "1") # По умолчанию включаем проверку
+                config.set("Proxy", "check", "1")
                 config.set("Proxy", "login", login)
                 config.set("Proxy", "password", password_proxy)
                 config.set("Proxy", "ip", ip)
-                config.set("Proxy", "port", str(port_proxy)) # port должен быть строкой в конфиге
+                config.set("Proxy", "port", str(port_proxy))
                 break
-            except ValueError as e: # Ловим конкретную ошибку от validate_proxy
+            except ValueError as e:
                 print(
                     f"\n{Fore.CYAN}{Style.BRIGHT}Неверный формат прокси ({e}). Попробуй еще раз! {Fore.RED}(o-_-o){Style.RESET_ALL}")
                 continue

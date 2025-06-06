@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from locales import ru, en, uk # Assuming these files exist/will be created
+from locales import ru, en, uk
 import logging
 
 logger = logging.getLogger("localizer")

@@ -1,3 +1,5 @@
+# START OF FILE FunPayCortex/tg_bot/auto_delivery_cp.py
+
 """
 В данном модуле описаны функции для ПУ конфига автовыдачи.
 Модуль реализован в виде плагина.
@@ -9,13 +11,13 @@ import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cortex import Cortex # Renamed FPCortex to Cortex
+    from cortex import Cortex
 
 from tg_bot import utils, keyboards as kb, CBT, MENU_CFG
 from tg_bot.static_keyboards import CLEAR_STATE_BTN
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery
 
-from Utils import cortex_tools # Renamed from Utils
+from Utils import cortex_tools
 from locales.localizer import Localizer
 
 import itertools
@@ -33,15 +35,13 @@ _ = localizer.translate
 def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     tg = cortex_instance.telegram
     bot = tg.bot
-    filename_re = re.compile(r"[А-Яа-яЁёA-Za-z0-9_\- .]+") # Добавил точку в разрешенные символы для расширения .txt
+    filename_re = re.compile(r"[А-Яа-яЁёA-Za-z0-9_\- .]+")
 
     def check_ad_lot_exists(index: int, message_obj: Message | CallbackQuery, reply_mode: bool = True) -> bool:
-        # ad_lot_not_found_err уже локализован
-        # gl_refresh уже локализован
         chat_id = message_obj.chat.id if isinstance(message_obj, Message) else message_obj.message.chat.id
         message_id = message_obj.id if isinstance(message_obj, Message) else message_obj.message.id
 
-        if index >= len(cortex_instance.AD_CFG.sections()): # Используем >= для корректной проверки индекса
+        if index >= len(cortex_instance.AD_CFG.sections()):
             update_button = K().add(B(_("gl_refresh"), callback_data=f"{CBT.AD_LOTS_LIST}:0"))
             text_error = _("ad_lot_not_found_err", index)
             if reply_mode and isinstance(message_obj, Message):
@@ -54,12 +54,10 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 
     def check_products_file_exists(index: int, files_list: list[str],
                                    message_obj: Message | CallbackQuery, reply_mode: bool = True) -> bool:
-        # gf_not_found_err уже локализован
-        # gl_refresh уже локализован
         chat_id = message_obj.chat.id if isinstance(message_obj, Message) else message_obj.message.chat.id
         message_id = message_obj.id if isinstance(message_obj, Message) else message_obj.message.id
         
-        if index >= len(files_list): # Используем >=
+        if index >= len(files_list):
             update_button = K().add(B(_("gl_refresh"), callback_data=f"{CBT.PRODUCTS_FILES_LIST}:0"))
             text_error = _("gf_not_found_err", index)
             if reply_mode and isinstance(message_obj, Message):
@@ -73,22 +71,19 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     # Основное меню настроек автовыдачи.
     def open_ad_lots_list(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
-        # desc_ad_list уже локализован
         bot.edit_message_text(_("desc_ad_list"), c.message.chat.id, c.message.id,
                               reply_markup=kb.lots_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
 
     def open_fp_lots_list(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
-        # desc_ad_fp_lot_list уже локализован
-        last_update_time = cortex_instance.last_telegram_lots_update.strftime("%d.%m.%Y %H:%M:%S") if cortex_instance.last_telegram_lots_update else _("never_updated", language=localizer.current_language) # Ключ для "никогда не обновлялось"
+        last_update_time = cortex_instance.last_tg_profile_update.strftime("%d.%m.%Y %H:%M:%S") if cortex_instance.last_tg_profile_update else _("never_updated")
         bot.edit_message_text(_("desc_ad_fp_lot_list", last_update_time),
                               c.message.chat.id, c.message.id, reply_markup=kb.funpay_lots_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
 
     def act_add_lot_manually(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
-        # copy_lot_name уже локализован
         result = bot.send_message(c.message.chat.id, _("copy_lot_name"), reply_markup=CLEAR_STATE_BTN())
         tg.set_state(c.message.chat.id, result.id, c.from_user.id, CBT.ADD_AD_TO_LOT_MANUALLY, data={"offset": offset})
         bot.answer_callback_query(c.id)
@@ -96,10 +91,9 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     def add_lot_manually(m: Message):
         fp_lots_offset = tg.get_state(m.chat.id, m.from_user.id)["data"]["offset"]
         tg.clear_state(m.chat.id, m.from_user.id, True)
-        lot_title = m.text.strip() # Переименовал для ясности
+        lot_title = m.text.strip()
 
         if lot_title in cortex_instance.AD_CFG.sections():
-            # ad_lot_already_exists, gl_back, ad_add_another_ad уже локализованы
             error_keyboard = K() \
                 .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
                      B(_("ad_add_another_ad"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{fp_lots_offset}"))
@@ -107,31 +101,26 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             return
 
         cortex_instance.AD_CFG.add_section(lot_title)
-        # Текст по умолчанию для нового лота, $username и $product - переменные
-        default_response_text = _("ad_default_response_text_new_lot", username_var="$username", product_var="$product", language=localizer.current_language) # Ключ для "Спасибо за покупку, $username!\nВот твой товар:\n$product"
+        default_response_text = _("ad_default_response_text_new_lot")
         cortex_instance.AD_CFG.set(lot_title, "response", default_response_text)
         cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
         logger.info(_("log_ad_linked", m.from_user.username, m.from_user.id, lot_title))
 
         lot_index = len(cortex_instance.AD_CFG.sections()) - 1
         ad_lot_offset = utils.get_offset(lot_index, MENU_CFG.AD_BTNS_AMOUNT)
-        # ad_add_more_ad, gl_configure уже локализованы
         keyboard = K() \
             .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
                  B(_("ad_add_more_ad"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{fp_lots_offset}"),
                  B(_("gl_configure"), callback_data=f"{CBT.EDIT_AD_LOT}:{lot_index}:{ad_lot_offset}"))
-        # ad_lot_linked уже локализован
         bot.send_message(m.chat.id, _("ad_lot_linked", utils.escape(lot_title)), reply_markup=keyboard)
 
     def open_gf_list(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
-        # desc_gf уже локализован
         bot.edit_message_text(_("desc_gf"), c.message.chat.id, c.message.id,
                               reply_markup=kb.products_files_list(offset))
         bot.answer_callback_query(c.id)
 
     def act_create_gf(c: CallbackQuery):
-        # act_create_gf уже локализован
         result = bot.send_message(c.message.chat.id, _("act_create_gf"), reply_markup=CLEAR_STATE_BTN())
         tg.set_state(c.message.chat.id, result.id, c.from_user.id, CBT.CREATE_PRODUCTS_FILE)
         bot.answer_callback_query(c.id)
@@ -140,7 +129,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         tg.clear_state(m.chat.id, m.from_user.id, True)
         file_name_input = m.text.strip()
 
-        # gf_name_invalid, gl_back, gf_create_another уже локализованы
         error_keyboard = K().row(B(_("gl_back"), callback_data=f"{CBT.CATEGORY}:ad"),
                                  B(_("gf_create_another"), callback_data=CBT.CREATE_PRODUCTS_FILE))
 
@@ -148,7 +136,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             bot.reply_to(m, _("gf_name_invalid"), reply_markup=error_keyboard)
             return
         
-        # Добавляем .txt, если пользователь его не указал
         actual_file_name = file_name_input if file_name_input.lower().endswith(".txt") else file_name_input + ".txt"
         
         products_dir_path = "storage/products"
@@ -160,7 +147,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         if os.path.exists(full_path):
             all_files = sorted([f for f in os.listdir(products_dir_path) if f.endswith(".txt")])
             file_index = all_files.index(actual_file_name) if actual_file_name in all_files else -1
-            # gf_already_exists_err, gl_configure уже локализованы
             offset_for_kb = utils.get_offset(file_index, MENU_CFG.PF_BTNS_AMOUNT) if file_index != -1 else 0
             keyboard = K() \
                 .row(B(_("gl_back"), callback_data=f"{CBT.CATEGORY}:ad"),
@@ -175,20 +161,18 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         except Exception as e:
             logger.error(f"Ошибка создания файла {full_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
-            # gf_creation_err уже локализован
             bot.reply_to(m, _("gf_creation_err", utils.escape(actual_file_name)), reply_markup=error_keyboard)
-            return # Важно выйти, чтобы не продолжать с несуществующим файлом
+            return
 
         all_files_after_creation = sorted([f for f in os.listdir(products_dir_path) if f.endswith(".txt")])
         try:
             new_file_index = all_files_after_creation.index(actual_file_name)
-        except ValueError: # На случай если файл не появился в списке сразу (маловероятно)
+        except ValueError:
             logger.error(f"Созданный файл {actual_file_name} не найден в списке {products_dir_path}")
             bot.reply_to(m, _("gf_creation_err", utils.escape(actual_file_name)) + " " + _("gl_try_again"), reply_markup=error_keyboard)
             return
             
         offset_for_kb_after_creation = utils.get_offset(new_file_index, MENU_CFG.PF_BTNS_AMOUNT)
-        # gf_create_more, gf_created уже локализованы
         keyboard_success = K() \
             .row(B(_("gl_back"), callback_data=f"{CBT.CATEGORY}:ad"),
                  B(_("gf_create_more"), callback_data=CBT.CREATE_PRODUCTS_FILE),
@@ -200,13 +184,12 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     def open_edit_lot_cp(c: CallbackQuery):
         split_data = c.data.split(":")
         lot_index, offset = int(split_data[1]), int(split_data[2])
-        if not check_ad_lot_exists(lot_index, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_ad_lot_exists(lot_index, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
 
         lot_name = cortex_instance.AD_CFG.sections()[lot_index]
         lot_obj = cortex_instance.AD_CFG[lot_name]
-        # utils.generate_lot_info_text уже локализован
         bot.edit_message_text(utils.generate_lot_info_text(lot_obj), c.message.chat.id, c.message.id,
                               reply_markup=kb.edit_lot(cortex_instance, lot_index, offset))
         bot.answer_callback_query(c.id)
@@ -217,7 +200,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         variables = ["v_date", "v_date_text", "v_full_date_text", "v_time", "v_full_time", "v_username",
                      "v_product", "v_order_id", "v_order_link", "v_order_title", "v_game", "v_category",
                      "v_category_fullname", "v_photo", "v_sleep"]
-        # v_edit_delivery_text, v_list уже локализованы
         text_to_send = f"{_('v_edit_delivery_text')}\n\n{_('v_list')}:\n" + "\n".join(_(var) for var in variables)
         result = bot.send_message(c.message.chat.id, text_to_send, reply_markup=CLEAR_STATE_BTN())
         tg.set_state(c.message.chat.id, result.id, c.from_user.id, CBT.EDIT_LOT_DELIVERY_TEXT,
@@ -234,25 +216,21 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         new_response_text = m.text.strip()
         lot_name = cortex_instance.AD_CFG.sections()[lot_index]
         lot_obj = cortex_instance.AD_CFG[lot_name]
-        # gl_back, gl_edit уже локализованы
         keyboard_reply = K().row(B(_("gl_back"), callback_data=f"{CBT.EDIT_AD_LOT}:{lot_index}:{offset}"),
                                  B(_("gl_edit"), callback_data=f"{CBT.EDIT_LOT_DELIVERY_TEXT}:{lot_index}:{offset}"))
 
         if lot_obj.get("productsFileName") is not None and "$product" not in new_response_text:
-            # ad_product_var_err уже локализован
             bot.reply_to(m, _("ad_product_var_err", utils.escape(lot_name)), reply_markup=keyboard_reply)
             return
 
         cortex_instance.AD_CFG.set(lot_name, "response", new_response_text)
         cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
         logger.info(_("log_ad_text_changed", m.from_user.username, m.from_user.id, lot_name, new_response_text))
-        # ad_text_changed уже локализован
         bot.reply_to(m, _("ad_text_changed", utils.escape(lot_name), utils.escape(new_response_text)), reply_markup=keyboard_reply)
 
     def act_link_gf(c: CallbackQuery):
         split_data = c.data.split(":")
         lot_index, offset = int(split_data[1]), int(split_data[2])
-        # ad_link_gf уже локализован
         result = bot.send_message(c.message.chat.id, _("ad_link_gf"), reply_markup=CLEAR_STATE_BTN())
         tg.set_state(c.message.chat.id, result.id, c.from_user.id, CBT.BIND_PRODUCTS_FILE,
                      {"lot_index": lot_index, "offset": offset})
@@ -269,27 +247,22 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         lot_obj = cortex_instance.AD_CFG[lot_name]
         file_name_input = m.text.strip()
         
-        # ea_link_another_gf уже локализован
         keyboard_reply = K() \
             .row(B(_("gl_back"), callback_data=f"{CBT.EDIT_AD_LOT}:{lot_index}:{offset}"),
                  B(_("ea_link_another_gf"), callback_data=f"{CBT.BIND_PRODUCTS_FILE}:{lot_index}:{offset}"))
 
-        if file_name_input == "-": # Отвязка файла
-            cortex_instance.AD_CFG.remove_option(lot_name, "productsFileName", fallback=None) # fallback=None чтобы не было ошибки, если опции нет
+        if file_name_input == "-":
+            cortex_instance.AD_CFG.remove_option(lot_name, "productsFileName", fallback=None)
             cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
             logger.info(_("log_gf_unlinked", m.from_user.username, m.from_user.id, lot_name))
-            # ad_gf_unlinked уже локализован
             bot.reply_to(m, _("ad_gf_unlinked", utils.escape(lot_name)), reply_markup=keyboard_reply)
             return
 
-        # Проверка на $product только если привязываем новый файл, а не отвязываем
         if "$product" not in lot_obj.get("response",""):
-            # ad_product_var_err2 уже локализован
             bot.reply_to(m, _("ad_product_var_err2"), reply_markup=keyboard_reply)
             return
 
         if not filename_re.fullmatch(file_name_input):
-            # gf_name_invalid уже локализован
             bot.reply_to(m, _("gf_name_invalid"), reply_markup=keyboard_reply)
             return
 
@@ -298,7 +271,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         file_existed_before_linking = os.path.exists(full_file_path_to_link)
 
         if not file_existed_before_linking:
-            # ad_creating_gf уже локализован
             bot.send_message(m.chat.id, _("ad_creating_gf", utils.escape(actual_file_name_to_link)))
             try:
                 if not os.path.exists(os.path.dirname(full_file_path_to_link)):
@@ -307,7 +279,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
                     pass
             except Exception as e:
                 logger.error(f"Ошибка создания файла при привязке: {full_file_path_to_link}, {e}")
-                # gf_creation_err уже локализован
                 bot.reply_to(m, _("gf_creation_err", utils.escape(actual_file_name_to_link)), reply_markup=keyboard_reply)
                 return
 
@@ -316,31 +287,27 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 
         if file_existed_before_linking:
             logger.info(_("log_gf_linked", m.from_user.username, m.from_user.id, actual_file_name_to_link, lot_name))
-            # ad_gf_linked уже локализован
             bot.reply_to(m, _("ad_gf_linked", utils.escape(actual_file_name_to_link), utils.escape(lot_name)), reply_markup=keyboard_reply)
         else:
             logger.info(_("log_gf_created_and_linked", m.from_user.username, m.from_user.id, actual_file_name_to_link, lot_name))
-            # ad_gf_created_and_linked уже локализован
             bot.reply_to(m, _("ad_gf_created_and_linked", utils.escape(actual_file_name_to_link), utils.escape(lot_name)), reply_markup=keyboard_reply)
 
     def switch_lot_setting(c: CallbackQuery):
         split_data = c.data.split(":")
         param_name, lot_index, offset = split_data[1], int(split_data[2]), int(split_data[3])
-        if not check_ad_lot_exists(lot_index, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_ad_lot_exists(lot_index, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
 
         lot_name = cortex_instance.AD_CFG.sections()[lot_index]
         lot_obj = cortex_instance.AD_CFG[lot_name]
-        # Безопасное получение текущего значения, по умолчанию "0" (выключено)
-        current_value = lot_obj.getboolean(param_name, False) # getboolean вернет False если опции нет или она невалидна
-        new_value_str = str(int(not current_value)) # Инвертируем и преобразуем в строку "0" или "1"
+        current_value = lot_obj.getboolean(param_name, False)
+        new_value_str = str(int(not current_value))
         
         cortex_instance.AD_CFG.set(lot_name, param_name, new_value_str)
         cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
         logger.info(_("log_param_changed", c.from_user.username, c.from_user.id, param_name, lot_name, new_value_str))
         
-        # Обновляем текст сообщения с информацией о лоте и клавиатуру
         bot.edit_message_text(utils.generate_lot_info_text(lot_obj), c.message.chat.id, c.message.id,
                               reply_markup=kb.edit_lot(cortex_instance, lot_index, offset))
         bot.answer_callback_query(c.id)
@@ -349,20 +316,17 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         split_data = c.data.split(":")
         lot_index, offset = int(split_data[1]), int(split_data[2])
 
-        if not check_ad_lot_exists(lot_index, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_ad_lot_exists(lot_index, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
 
         lot_name = cortex_instance.AD_CFG.sections()[lot_index]
-        # Генерируем более короткий и читаемый ключ
         test_key = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
         cortex_instance.delivery_tests[test_key] = lot_name
 
         logger.info(_("log_new_ad_key", c.from_user.username, c.from_user.id, lot_name, test_key))
-        # gl_back, ea_more_test уже локализованы
         keyboard_reply = K().row(B(_("gl_back"), callback_data=f"{CBT.EDIT_AD_LOT}:{lot_index}:{offset}"),
                                  B(_("ea_more_test"), callback_data=f"test_auto_delivery:{lot_index}:{offset}"))
-        # test_ad_key_created уже локализован
         bot.send_message(c.message.chat.id, _("test_ad_key_created", utils.escape(lot_name), test_key),
                          reply_markup=keyboard_reply)
         bot.answer_callback_query(c.id)
@@ -371,7 +335,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         split_data = c.data.split(":")
         lot_index, offset = int(split_data[1]), int(split_data[2])
 
-        if not check_ad_lot_exists(lot_index, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_ad_lot_exists(lot_index, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
 
@@ -380,7 +344,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
 
         logger.info(_("log_ad_deleted", c.from_user.username, c.from_user.id, lot_name_to_delete))
-        # desc_ad_list уже локализован
         bot.edit_message_text(_("desc_ad_list"), c.message.chat.id, c.message.id,
                               reply_markup=kb.lots_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
@@ -388,17 +351,14 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     # Меню добавления лота с FunPay
     def update_funpay_lots_list(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
-        # ad_updating_lots_list уже локализован
         new_msg = bot.send_message(c.message.chat.id, _("ad_updating_lots_list"))
-        bot.answer_callback_query(c.id) # Отвечаем на колбэк сразу
+        bot.answer_callback_query(c.id)
         
         update_result = cortex_instance.update_lots_and_categories()
         if not update_result:
-            # ad_lots_list_updating_err уже локализован
             bot.edit_message_text(_("ad_lots_list_updating_err"), new_msg.chat.id, new_msg.id)
             return
-        bot.delete_message(new_msg.chat.id, new_msg.id) # Удаляем сообщение "Обновляю..."
-        # Обновляем данные для колбэка и вызываем функцию открытия списка лотов FP
+        bot.delete_message(new_msg.chat.id, new_msg.id)
         c.data = f"{CBT.FP_LOTS_LIST}:{offset}"
         open_fp_lots_list(c)
 
@@ -408,7 +368,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         
         all_fp_lots = cortex_instance.tg_profile.get_common_lots()
         if fp_lot_index >= len(all_fp_lots):
-            # ad_lot_not_found_err, gl_refresh уже локализованы
             update_button = K().add(B(_("gl_refresh"), callback_data=f"{CBT.FP_LOTS_LIST}:0"))
             bot.edit_message_text(_("ad_lot_not_found_err", fp_lot_index),
                                   c.message.chat.id, c.message.id, reply_markup=update_button)
@@ -421,7 +380,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         if selected_lot_title in cortex_instance.AD_CFG.sections():
             ad_lot_index_in_cfg = cortex_instance.AD_CFG.sections().index(selected_lot_title)
             offset_for_ad_cfg_kb = utils.get_offset(ad_lot_index_in_cfg, MENU_CFG.AD_BTNS_AMOUNT)
-            # ad_already_ad_err, gl_back, gl_configure уже локализованы
             keyboard_info = K() \
                 .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
                      B(_("gl_configure"), callback_data=f"{CBT.EDIT_AD_LOT}:{ad_lot_index_in_cfg}:{offset_for_ad_cfg_kb}"))
@@ -430,7 +388,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             return
 
         cortex_instance.AD_CFG.add_section(selected_lot_title)
-        default_response_text = _("ad_default_response_text_new_lot", username_var="$username", product_var="$product", language=localizer.current_language)
+        default_response_text = _("ad_default_response_text_new_lot")
         cortex_instance.AD_CFG.set(selected_lot_title, "response", default_response_text)
         cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
 
@@ -441,7 +399,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
                  B(_("gl_configure"), callback_data=f"{CBT.EDIT_AD_LOT}:{new_ad_lot_index}:{offset_for_new_ad_lot_kb}"))
 
         logger.info(_("log_ad_linked", c.from_user.username, c.from_user.id, selected_lot_title))
-        # ad_lot_linked уже локализован
         bot.send_message(c.message.chat.id, _("ad_lot_linked", utils.escape(selected_lot_title)), reply_markup=keyboard_success)
         bot.answer_callback_query(c.id)
 
@@ -453,28 +410,25 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         products_dir = "storage/products"
         all_product_files = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
 
-        if not check_products_file_exists(file_index, all_product_files, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_products_file_exists(file_index, all_product_files, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
 
         selected_file_name = all_product_files[file_index]
         full_selected_file_path = os.path.join(products_dir, selected_file_name)
         
-        products_amount_str = "⚠️" # По умолчанию, если ошибка
+        products_amount_str = "⚠️"
         try:
             products_amount_str = str(cortex_tools.count_products(full_selected_file_path))
         except Exception:
-            pass # products_amount_str останется "⚠️"
+            pass
 
-        nl = "\n" # Для переноса строки в f-string
-        # Ищем лоты, использующие этот файл
+        nl = "\n"
         linked_lots_list = [lot_name for lot_name in cortex_instance.AD_CFG.sections() 
                             if cortex_instance.AD_CFG[lot_name].get("productsFileName") == selected_file_name]
         
-        # gf_amount, gf_uses, gl_last_update уже локализованы
-        # Добавим ключ 'no_lots_using_file' для "Ни один лот не использует этот файл."
         linked_lots_display = nl.join(f"<code> • {utils.escape(lot)}</code>" for lot in linked_lots_list) if linked_lots_list \
-                              else f"<i>({_('no_lots_using_file', language=localizer.current_language)})</i>"
+                              else f"<i>({_('no_lots_using_file')})</i>"
 
         text_to_send = f"""📄 <b><u>{utils.escape(selected_file_name)}</u></b>
 
@@ -482,7 +436,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 🔗 <b><i>{_('gf_uses')}:</i></b>
 {linked_lots_display}
 
-⏱️ <i>{_('gl_last_update')}:</i>  <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>""" # Полная дата
+⏱️ <i>{_('gl_last_update')}:</i>  <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
 
         bot.edit_message_text(text_to_send, c.message.chat.id, c.message.id,
                               reply_markup=kb.products_file_edit(file_index, offset))
@@ -491,7 +445,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     def act_add_products_to_file(c: CallbackQuery):
         split_data = c.data.split(":")
         file_index, el_index, offset, prev_page = int(split_data[1]), int(split_data[2]), int(split_data[3]), int(split_data[4])
-        # gf_send_new_goods уже локализован
         result = bot.send_message(c.message.chat.id, _("gf_send_new_goods"), reply_markup=CLEAR_STATE_BTN())
         tg.set_state(c.message.chat.id, result.id, c.from_user.id, CBT.ADD_PRODUCTS_TO_FILE,
                      {"file_index": file_index, "element_index": el_index,
@@ -507,8 +460,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         products_dir = "storage/products"
         all_product_files = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
         
-        if file_index >= len(all_product_files): # Проверка существования файла по индексу
-            # gf_not_found_err, gl_refresh, gl_back уже локализованы
+        if file_index >= len(all_product_files):
             update_btn_cb = f"{CBT.PRODUCTS_FILES_LIST}:0" if prev_page == 0 else f"{CBT.EDIT_AD_LOT}:{el_index}:{offset}"
             error_keyboard = K().add(B(_("gl_refresh") if prev_page == 0 else _("gl_back"), callback_data=update_btn_cb))
             bot.reply_to(m, _("gf_not_found_err", file_index), reply_markup=error_keyboard)
@@ -517,27 +469,22 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         selected_file_name = all_product_files[file_index]
         full_selected_file_path = os.path.join(products_dir, selected_file_name)
         
-        # Фильтруем пустые строки и убираем лишние пробелы
         products_to_add = [prod.strip() for prod in m.text.strip().split("\n") if prod.strip()]
 
-        # gl_back, gf_try_add_again, gf_add_more уже локализованы
         back_btn_cb = f"{CBT.EDIT_PRODUCTS_FILE}:{file_index}:{offset}" if prev_page == 0 else f"{CBT.EDIT_AD_LOT}:{el_index}:{offset}"
         try_again_btn_cb = f"{CBT.ADD_PRODUCTS_TO_FILE}:{file_index}:{el_index}:{offset}:{prev_page}"
-        add_more_btn_cb = try_again_btn_cb # Для кнопки "добавить еще" тот же колбэк
+        add_more_btn_cb = try_again_btn_cb
 
-        if not products_to_add: # Если после фильтрации список товаров пуст
-            # Добавим ключ 'gf_no_products_to_add' для "Не было введено товаров для добавления."
-            bot.reply_to(m, _("gf_no_products_to_add", language=localizer.current_language), 
+        if not products_to_add:
+            bot.reply_to(m, _("gf_no_products_to_add"), 
                          reply_markup=K().row(B(_("gl_back"), callback_data=back_btn_cb), 
                                             B(_("gf_try_add_again"), callback_data=try_again_btn_cb)))
             return
 
-        products_text_to_write = "\n" + "\n".join(products_to_add) # Добавляем перенос строки перед первой новой записью, если файл не пуст
+        products_text_to_write = "\n" + "\n".join(products_to_add)
 
         try:
-            # Дописываем в конец файла
             with open(full_selected_file_path, "a", encoding="utf-8") as f:
-                # Если файл был пустой, не добавляем лишний \n вначале
                 if os.path.getsize(full_selected_file_path) > 0 and not products_text_to_write.startswith("\n"):
                     f.write("\n")
                 elif os.path.getsize(full_selected_file_path) == 0 and products_text_to_write.startswith("\n"):
@@ -547,14 +494,12 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         except Exception as e:
             logger.error(f"Ошибка добавления товаров в {full_selected_file_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
-            # gf_add_goods_err уже локализован
             keyboard_error = K().row(B(_("gl_back"), callback_data=back_btn_cb), B(_("gf_try_add_again"), callback_data=try_again_btn_cb))
             bot.reply_to(m, _("gf_add_goods_err"), reply_markup=keyboard_error)
             return
 
         logger.info(_("log_gf_new_goods", m.from_user.username, m.from_user.id, len(products_to_add), selected_file_name))
         keyboard_success = K().row(B(_("gl_back"), callback_data=back_btn_cb), B(_("gf_add_more"), callback_data=add_more_btn_cb))
-        # gf_new_goods уже локализован
         bot.reply_to(m, _("gf_new_goods", len(products_to_add), utils.escape(selected_file_name)), reply_markup=keyboard_success)
 
     def send_products_file(c: CallbackQuery):
@@ -564,7 +509,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         products_dir = "storage/products"
         all_product_files = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
 
-        if not check_products_file_exists(file_index, all_product_files, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_products_file_exists(file_index, all_product_files, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
 
@@ -575,17 +520,15 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             with open(full_selected_file_path, "r", encoding="utf-8") as f:
                 data_content = f.read().strip()
                 if not data_content:
-                    # gf_empty_error уже локализован
                     bot.answer_callback_query(c.id, _("gf_empty_error", utils.escape(selected_file_name)), show_alert=True)
                     return
                 
-                # Переоткрываем для отправки как документ
-                with open(full_selected_file_path, "rb") as file_to_send: # "rb" для бинарного режима
+                with open(full_selected_file_path, "rb") as file_to_send:
                     bot.send_document(c.message.chat.id, file_to_send, caption=f"📄 {utils.escape(selected_file_name)}")
             logger.info(_("log_gf_downloaded", c.from_user.username, c.from_user.id, selected_file_name))
             bot.answer_callback_query(c.id)
         except FileNotFoundError:
-             bot.answer_callback_query(c.id, _("gf_not_found_err", file_index), show_alert=True) # На случай если файл удалили между проверкой и отправкой
+             bot.answer_callback_query(c.id, _("gf_not_found_err", file_index), show_alert=True)
         except Exception as e:
             logger.error(f"Ошибка при отправке файла {selected_file_name}: {e}")
             bot.answer_callback_query(c.id, _("gl_error_try_again"), show_alert=True)
@@ -598,7 +541,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         products_dir = "storage/products"
         all_product_files = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
 
-        if not check_products_file_exists(file_index, all_product_files, c, reply_mode=False): # Передаем CallbackQuery
+        if not check_products_file_exists(file_index, all_product_files, c, reply_mode=False):
             bot.answer_callback_query(c.id)
             return
         bot.edit_message_reply_markup(c.message.chat.id, c.message.id,
@@ -612,10 +555,8 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         products_dir = "storage/products"
         all_product_files = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
 
-        # Важно: используем сохраненный `file_index_to_delete` для получения имени файла из списка ДО его возможного изменения
         if file_index_to_delete >= len(all_product_files):
-            bot.answer_callback_query(c.id, _("gf_not_found_err", file_index_to_delete) + " " + _("gl_refresh_and_try_again", language=localizer.current_language), show_alert=True) # Ключ для "Обновите список и попробуйте снова"
-            # Обновляем список файлов на всякий случай
+            bot.answer_callback_query(c.id, _("gf_not_found_err", file_index_to_delete) + " " + _("gl_refresh_and_try_again"), show_alert=True)
             c.data = f"{CBT.PRODUCTS_FILES_LIST}:{offset}"
             open_gf_list(c)
             return
@@ -623,12 +564,9 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         file_name_to_delete = all_product_files[file_index_to_delete]
         full_path_to_delete = os.path.join(products_dir, file_name_to_delete)
 
-        # Проверка, используется ли файл в каких-либо лотах
         linked_lots = [lot_name for lot_name in cortex_instance.AD_CFG.sections() 
                        if cortex_instance.AD_CFG[lot_name].get("productsFileName") == file_name_to_delete]
         if linked_lots:
-            # gf_linked_err, gl_back уже локализованы
-            # Передаем актуальный file_index, если список изменился, но для отображения ошибки это не так критично
             keyboard_error = K().add(B(_("gl_back"), callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_index_to_delete}:{offset}"))
             bot.edit_message_text(_("gf_linked_err", utils.escape(file_name_to_delete)),
                                   c.message.chat.id, c.message.id, reply_markup=keyboard_error)
@@ -639,31 +577,26 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             os.remove(full_path_to_delete)
             logger.info(_("log_gf_deleted", c.from_user.username, c.from_user.id, file_name_to_delete))
             
-            # После удаления обновляем список файлов и отображаем его,
-            # смещение offset может потребовать корректировки, если удален элемент перед ним
-            # Простой вариант - вернуться на первую страницу или на предыдущую, если возможно
             new_offset = max(0, offset - MENU_CFG.PF_BTNS_AMOUNT if offset >= MENU_CFG.PF_BTNS_AMOUNT and len(all_product_files)-1 < offset + MENU_CFG.PF_BTNS_AMOUNT else offset)
-            new_offset = 0 if len(all_product_files) -1 <= MENU_CFG.PF_BTNS_AMOUNT else new_offset # Если элементов мало, всегда 0
+            new_offset = 0 if len(all_product_files) -1 <= MENU_CFG.PF_BTNS_AMOUNT else new_offset
 
-            c.data = f"{CBT.PRODUCTS_FILES_LIST}:{new_offset}" # Используем скорректированный offset
-            open_gf_list(c) # Вызов open_gf_list обновит сообщение
-            bot.answer_callback_query(c.id, _("gf_deleted_successfully", file_name=utils.escape(file_name_to_delete), language=localizer.current_language), show_alert=True) # Ключ для "Файл {file_name} успешно удален."
-        except FileNotFoundError: # Если файл уже удален
+            c.data = f"{CBT.PRODUCTS_FILES_LIST}:{new_offset}"
+            open_gf_list(c)
+            bot.answer_callback_query(c.id, _("gf_deleted_successfully", file_name=utils.escape(file_name_to_delete)), show_alert=True)
+        except FileNotFoundError:
             logger.warning(f"Попытка удалить уже удаленный файл: {full_path_to_delete}")
             c.data = f"{CBT.PRODUCTS_FILES_LIST}:{offset}"
             open_gf_list(c)
-            bot.answer_callback_query(c.id, _("gf_already_deleted", file_name=utils.escape(file_name_to_delete), language=localizer.current_language), show_alert=True) # Ключ для "Файл {file_name} уже был удален."
+            bot.answer_callback_query(c.id, _("gf_already_deleted", file_name=utils.escape(file_name_to_delete)), show_alert=True)
         except Exception as e:
             logger.error(f"Ошибка удаления файла {full_path_to_delete}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             keyboard_error_del = K().add(B(_("gl_back"), callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_index_to_delete}:{offset}"))
-            # gf_deleting_err уже локализован
             bot.edit_message_text(_("gf_deleting_err", utils.escape(file_name_to_delete)),
                                   c.message.chat.id, c.message.id, reply_markup=keyboard_error_del)
             bot.answer_callback_query(c.id)
             return
             
-    # Регистрация хэндлеров (без изменений в этой части, так как они используют CBT константы)
     tg.cbq_handler(open_ad_lots_list, lambda c: c.data.startswith(f"{CBT.AD_LOTS_LIST}:"))
     tg.cbq_handler(open_fp_lots_list, lambda c: c.data.startswith(f"{CBT.FP_LOTS_LIST}:"))
     tg.cbq_handler(act_add_lot_manually, lambda c: c.data.startswith(f"{CBT.ADD_AD_TO_LOT_MANUALLY}:"))
@@ -704,3 +637,5 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 
 
 BIND_TO_PRE_INIT = [init_auto_delivery_cp]
+
+# END OF FILE FunPayCortex/tg_bot/auto_delivery_cp.py

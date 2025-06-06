@@ -5,19 +5,19 @@ WantedBy=multi-user.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/%i/FunPayCortex # Changed path
-ExecStart=/home/%i/pyvenv/bin/python /home/%i/FunPayCortex/main.py # Changed path
+WorkingDirectory=/home/%i/FunPayCortex
+ExecStart=/home/%i/pyvenv/bin/python /home/%i/FunPayCortex/main.py
 Restart=always
 RestartSec=10s
-SyslogIdentifier=FunPayCortex-%i # Changed identifier
+SyslogIdentifier=FunPayCortex-%i
 User=%i
-Environment="LANG=en_US.utf8"
-Environment="FPCORTEX_IS_RUNNIG_AS_SERVICE=1" # Changed ENV var name
+Environment="LANG=ru_RU.UTF-8"
+Environment="FPCORTEX_IS_RUNNING_AS_SERVICE=1"
 
-ExecStartPre=+/usr/bin/install -m 755 -o root -g root -d /run/FunPayCortex # Changed path
-ExecStartPre=+/usr/bin/install -m 755 -o %i -g root -d /run/FunPayCortex/%i # Changed path
+ExecStartPre=+/usr/bin/install -m 755 -o root -g root -d /run/FunPayCortex
+ExecStartPre=+/usr/bin/install -m 755 -o %i -g root -d /run/FunPayCortex/%i
 
-PIDFile=/run/FunPayCortex/%i/FunPayCortex.pid # Changed path
+PIDFile=/run/FunPayCortex/%i/FunPayCortex.pid
 
 # FunPayCortex security hardening, all of the below entries are optional, but their existence improves security of your system
 # * As stated above this entries are optional, if some of the below entries are not supported by your system, you can safely remove them
@@ -31,14 +31,14 @@ PrivateUsers=yes
 ProtectHostname=yes
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
-ReadWritePaths=/home/%i/FunPayCortex /home/%i/pyvenv -/run/FunPayCortex # Changed path
+ReadWritePaths=/home/%i/FunPayCortex /home/%i/pyvenv -/run/FunPayCortex
 # Prevent other services from accessing PID file
 # UMask=0077
 # End of FunPayCortex security hardening
 
 [Unit]
 After=network.target
-Description=FunPayCortex Bot Service (on %I) # Changed description
+Description=FunPayCortex Bot Service (on %I)
 # Documentation=YOUR_DOCUMENTATION_URL_HERE # Add your documentation URL if you have one
 
 # END OF FILE FunPayCortex/FunPayCortex@.service

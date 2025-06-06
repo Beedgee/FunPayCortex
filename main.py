@@ -3,21 +3,15 @@
 import time
 from pip._internal.cli.main import main
 
-# todo убрать когда-то
-while True:
-    try:
-        import lxml
+try:
+    import lxml
+except ModuleNotFoundError:
+    main(["install", "-U", "lxml>=5.3.0"])
+try:
+    import bcrypt
+except ModuleNotFoundError:
+    main(["install", "-U", "bcrypt>=4.2.0"])
 
-        break
-    except ModuleNotFoundError:
-        main(["install", "-U", "lxml>=5.3.0"])
-while True:
-    try:
-        import bcrypt
-
-        break
-    except ModuleNotFoundError:
-        main(["install", "-U", "bcrypt>=4.2.0"])
 import Utils.cortex_tools
 import Utils.config_loader as cfg_loader
 from first_setup import first_setup
@@ -33,16 +27,15 @@ from locales.localizer import Localizer
 import announcements
 
 logo = r"""
- ______  _____    _____               _
-|  ____||  __ \  / ____|             | |
-| |__   | |__) || |       ___   _ __ | |_   ___ __  __
-|  __|  |  ___/ | |      / _ \ | '__|| __| / _ \\ \/ /
-| |     | |     | |____ | (_) || |   | |_ |  __/ >  <
-|_|     |_|      \_____| \___/ |_|    \__| \___|/_/\_\
+ ______________________________                __                 
+\_   _____/\______   \_   ___ \  ____________/  |_  ____ ___  ___
+ |    __)   |     ___/    \  \/ /  _ \_  __ \   __\/ __ \\  \/  /
+ |     \    |    |   \     \___(  <_> )  | \/|  | \  ___/ >    < 
+ \___  /    |____|    \______  /\____/|__|   |__|  \___  >__/\_ \
+     \/                      \/                        \/      \/                                             
+"""
 
-""" # ИСПРАВЛЕННЫЙ ЛОГОТИП FPCortex
-
-VERSION = "0.1.15.24"
+VERSION = "0.1.15.25"
 
 Utils.cortex_tools.set_console_title(f"FunPay Cortex v{VERSION}")
 
@@ -78,7 +71,7 @@ if not os.path.exists("configs/_main.cfg"):
     first_setup()
     sys.exit()
 
-if sys.platform == "linux" and os.getenv('FPCORTEX_IS_RUNNIG_AS_SERVICE', '0') == '1':
+if sys.platform == "linux" and os.getenv('FPCORTEX_IS_RUNNING_AS_SERVICE', '0') == '1':
     import getpass
     service_name = "FunPayCortex"
     run_dir = f"/run/{service_name}"

@@ -72,7 +72,7 @@
 
 ## :electric_plug: Плагины
 
-*   [Канал с плагинами](https://t.me/FunPayCortexPlugins) <!-- Изменено на предполагаемый канал -->
+*   [Канал с плагинами](https://t.me/FunPayCortex)
 *   Управление плагинами доступно через Telegram ПУ.
 
 ## :arrow_down: Установка

@@ -154,7 +154,7 @@ def load_main_config(config_path: str):
     if "Other" not in config or "watermark" not in config["Other"]:
         if "Other" not in config:
             config.add_section("Other")
-        config.set("Other", "watermark", "🤖 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🧠") # Changed watermark
+        config.set("Other", "watermark", "🧠 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🤖")
         with open(config_path, "w", encoding="utf-8") as f:
             config.write(f)
 

@@ -15,7 +15,7 @@ from Utils import config_loader as cfg_loader, exceptions as excs, cortex_tools
 from telebot.types import InlineKeyboardButton as Button, InlineKeyboardMarkup as K
 from tg_bot import utils, keyboards, CBT
 from tg_bot.static_keyboards import CLEAR_STATE_BTN
-from telebot import types, apihelper # Добавил apihelper для проверки кодов ошибок
+from telebot import types, apihelper
 import logging
 import os
 from locales.localizer import Localizer
@@ -35,14 +35,14 @@ def check_file(tg: TGBot, msg: types.Message, type_: Literal["py", "cfg", "json"
     actual_ext = file_name.split('.')[-1].lower() if '.' in file_name else ""
 
     allowed_text_exts = ["cfg", "txt", "py", "json", "ini", "log"]
-    if type_ and type_ not in allowed_text_exts : # Если type_ не текстовый, то он должен быть явно разрешен
+    if type_ and type_ not in allowed_text_exts :
         if actual_ext != type_.lower():
             bot.send_message(msg.chat.id, _("file_err_wrong_format", actual_ext=actual_ext, expected_ext=type_))
             return False
-    elif actual_ext not in allowed_text_exts : # Если type_ не указан (или текстовый) и расширение не в списке
+    elif actual_ext not in allowed_text_exts :
         bot.send_message(msg.chat.id, _("file_err_must_be_text"))
         return False
-    elif type_ and actual_ext != type_.lower(): # Если type_ текстовый, но расширение не совпадает
+    elif type_ and actual_ext != type_.lower():
         bot.send_message(msg.chat.id, _("file_err_wrong_format", actual_ext=actual_ext, expected_ext=type_))
         return False
 
@@ -60,7 +60,7 @@ def download_file(tg: TGBot, msg: types.Message, file_name: str = "temp_file.txt
     try:
         file_info = bot.get_file(msg.document.file_id)
         downloaded_file_bytes = bot.download_file(file_info.file_path)
-    except apihelper.ApiTelegramException as e: # Ловим специфичную ошибку Telegram API
+    except apihelper.ApiTelegramException as e:
         logger.error(f"Ошибка Telegram API при скачивании файла: {e}")
         bot.edit_message_text(_("file_err_download_failed") + f" (API Error: {e.error_code})", progress_msg.chat.id, progress_msg.id)
         return None
@@ -79,13 +79,13 @@ def download_file(tg: TGBot, msg: types.Message, file_name: str = "temp_file.txt
     try:
         with open(full_path, "wb") as new_file:
             new_file.write(downloaded_file_bytes)
-        bot.delete_message(progress_msg.chat.id, progress_msg.id) # Удаляем сообщение "Загружаю..."
+        bot.delete_message(progress_msg.chat.id, progress_msg.id)
         return full_path
-    except IOError as e: # Ловим ошибки ввода-вывода при сохранении
+    except IOError as e:
         logger.error(f"Ошибка сохранения скачанного файла {full_path}: {e}")
         bot.edit_message_text(_("file_err_download_failed") + " (Save Error)", progress_msg.chat.id, progress_msg.id)
         return None
-    except Exception as e: # Общая ошибка на всякий случай
+    except Exception as e:
         logger.error(f"Неожиданная ошибка при сохранении скачанного файла {full_path}: {e}")
         bot.edit_message_text(_("file_err_download_failed") + " (Unexpected Save Error)", progress_msg.chat.id, progress_msg.id)
         logger.debug("TRACEBACK", exc_info=True)
@@ -114,11 +114,10 @@ def init_uploader(cortex_instance: Cortex):
         products_count_str = "⚠️"
         try:
             products_count_str = str(cortex_tools.count_products(saved_file_path))
-        except Exception as e: # Более общее исключение, если count_products выдаст ошибку
+        except Exception as e:
             bot.send_message(m.chat.id, _("products_file_count_error") + f"\nError: {str(e)[:100]}")
             logger.error(f"Ошибка подсчета товаров в файле {saved_file_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
-            # Файл все равно загружен, так что можно не удалять его сразу
 
         products_dir = "storage/products"
         all_files_in_storage = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
@@ -134,7 +133,7 @@ def init_uploader(cortex_instance: Cortex):
         logger.info(f"Пользователь $MAGENTA@{m.from_user.username} (id: {m.from_user.id})$RESET "
                     f"загрузил файл с товарами $YELLOW{saved_file_path}$RESET.")
         bot.send_message(m.chat.id,
-                         _("products_file_upload_success", utils.escape(saved_file_path), products_count_str),
+                         _("products_file_upload_success", filepath=utils.escape(saved_file_path), count=products_count_str),
                          reply_markup=keyboard_reply)
 
     def act_upload_main_config(c: types.CallbackQuery):
@@ -156,7 +155,7 @@ def init_uploader(cortex_instance: Cortex):
         try:
             new_config = cfg_loader.load_main_config(temp_config_path)
         except excs.ConfigParseError as e:
-            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             if os.path.exists(temp_config_path): os.remove(temp_config_path)
             return
         except UnicodeDecodeError:
@@ -164,7 +163,7 @@ def init_uploader(cortex_instance: Cortex):
             if os.path.exists(temp_config_path): os.remove(temp_config_path)
             return
         except Exception as e:
-            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             logger.error(f"Непредвиденная ошибка при парсинге основного конфига {temp_config_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             if os.path.exists(temp_config_path): os.remove(temp_config_path)
@@ -198,7 +197,7 @@ def init_uploader(cortex_instance: Cortex):
             new_ar_config = cfg_loader.load_auto_response_config(temp_ar_cfg_path)
             raw_new_ar_config = cfg_loader.load_raw_auto_response_config(temp_ar_cfg_path)
         except excs.ConfigParseError as e:
-            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             if os.path.exists(temp_ar_cfg_path): os.remove(temp_ar_cfg_path)
             return
         except UnicodeDecodeError:
@@ -206,7 +205,7 @@ def init_uploader(cortex_instance: Cortex):
             if os.path.exists(temp_ar_cfg_path): os.remove(temp_ar_cfg_path)
             return
         except Exception as e:
-            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             logger.error(f"Непредвиденная ошибка при парсинге конфига автоответчика {temp_ar_cfg_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             if os.path.exists(temp_ar_cfg_path): os.remove(temp_ar_cfg_path)
@@ -240,7 +239,7 @@ def init_uploader(cortex_instance: Cortex):
         try:
             new_ad_config = cfg_loader.load_auto_delivery_config(temp_ad_cfg_path)
         except excs.ConfigParseError as e:
-            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             if os.path.exists(temp_ad_cfg_path): os.remove(temp_ad_cfg_path)
             return
         except UnicodeDecodeError:
@@ -248,7 +247,7 @@ def init_uploader(cortex_instance: Cortex):
             if os.path.exists(temp_ad_cfg_path): os.remove(temp_ad_cfg_path)
             return
         except Exception as e:
-            bot.edit_message_text(_("file_err_processing_generic", utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
+            bot.edit_message_text(_("file_err_processing_generic", error_message=utils.escape(str(e))), progress_msg_check.chat.id, progress_msg_check.id)
             logger.error(f"Непредвиденная ошибка при парсинге конфига автовыдачи {temp_ad_cfg_path}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             if os.path.exists(temp_ad_cfg_path): os.remove(temp_ad_cfg_path)
@@ -283,7 +282,7 @@ def init_uploader(cortex_instance: Cortex):
 
         keyboard_reply = K().add(Button(_("gl_back"), callback_data=f"{CBT.PLUGINS_LIST}:{offset}"))
         bot.send_message(m.chat.id,
-                         _("plugin_uploaded_success", utils.escape(original_plugin_filename)), # ИСПРАВЛЕНО
+                         _("plugin_uploaded_success", filename=utils.escape(original_plugin_filename)),
                          reply_markup=keyboard_reply)
 
     def send_funpay_image_handler(m: types.Message):
@@ -310,7 +309,7 @@ def init_uploader(cortex_instance: Cortex):
             bot.send_message(m.chat.id, _("file_err_too_large"))
             return
 
-        progress_msg_upload = bot.send_message(m.chat.id, _("file_info_downloading")) # Сначала "Загружаю..."
+        progress_msg_upload = bot.send_message(m.chat.id, _("file_info_downloading"))
         try:
             file_info = bot.get_file(photo_obj.file_id)
             downloaded_image_bytes = bot.download_file(file_info.file_path)
@@ -319,8 +318,8 @@ def init_uploader(cortex_instance: Cortex):
             image_id_on_fp = cortex_instance.account.upload_image(downloaded_image_bytes, type_="chat")
 
             bot.edit_message_text("✉️ Отправляю сообщение с изображением...", progress_msg_upload.chat.id, progress_msg_upload.id)
-            send_result = cortex_instance.account.send_message(node_id, None, username, image_id=image_id_on_fp) # image_id, а не image
-            bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id) # Удаляем сообщение о прогрессе
+            send_result = cortex_instance.account.send_message(node_id, None, username, image_id=image_id_on_fp)
+            bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id)
 
             reply_keyboard_after_send = keyboards.reply(node_id, username, again=True, extend=True)
             if not send_result:
@@ -328,7 +327,7 @@ def init_uploader(cortex_instance: Cortex):
                 return
             bot.reply_to(m, _("msg_sent", node_id, username), reply_markup=reply_keyboard_after_send)
         except Exception as e:
-            if 'progress_msg_upload' in locals() and progress_msg_upload: # Проверяем, было ли создано сообщение
+            if 'progress_msg_upload' in locals() and progress_msg_upload:
                  bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id)
             logger.error(f"Ошибка при отправке изображения в чат FunPay {node_id}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
@@ -363,9 +362,9 @@ def init_uploader(cortex_instance: Cortex):
             bot.reply_to(m, _("image_upload_error_generic"))
             return
 
-        success_message_header = _("image_upload_success_header", image_id_on_fp)
+        success_message_header = _("image_upload_success_header", image_id=image_id_on_fp)
         additional_info_key = "image_upload_chat_success_info" if image_type == "chat" else "image_upload_offer_success_info"
-        additional_info_text = _(additional_info_key, image_id_on_fp)
+        additional_info_text = _(additional_info_key, image_id=image_id_on_fp)
 
         bot.reply_to(m, f"{success_message_header}{additional_info_text}")
 

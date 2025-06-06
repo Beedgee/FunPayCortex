@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cortex import Cortex # Renamed import
+    from cortex import Cortex
 
-from FunPayAPI.types import OrderShortcut, Order, Currency # Added Currency import
+from FunPayAPI.types import OrderShortcut, Order, Currency
 from FunPayAPI import exceptions, utils as fp_utils
 from FunPayAPI.updater.events import *
 
@@ -28,7 +28,7 @@ import re
 LAST_STACK_ID = ""
 MSG_LOG_LAST_STACK_ID = ""
 
-logger = logging.getLogger("FPC.handlers") # Keep logger name?
+logger = logging.getLogger("FPC.handlers")
 localizer = Localizer()
 _ = localizer.translate
 
@@ -61,7 +61,7 @@ ORDER_HTML_TEMPLATE = """<a href="https://funpay.com/orders/DELITEST/" class="tc
 
 
 # INIT MESSAGE
-def save_init_chats_handler(c: Cortex, e: InitialChatEvent): # Renamed type hint
+def save_init_chats_handler(c: Cortex, e: InitialChatEvent):
     """
     Кэширует существующие чаты (чтобы не отправлять приветственные сообщения).
     """
@@ -71,7 +71,7 @@ def save_init_chats_handler(c: Cortex, e: InitialChatEvent): # Renamed type hint
 
 
 # NEW MESSAGE / LAST CHAT MESSAGE CHANGED
-def old_log_msg_handler(c: Cortex, e: LastChatMessageChangedEvent): # Renamed type hint
+def old_log_msg_handler(c: Cortex, e: LastChatMessageChangedEvent):
     """
     Логирует полученное сообщение.
     """
@@ -88,7 +88,7 @@ def old_log_msg_handler(c: Cortex, e: LastChatMessageChangedEvent): # Renamed ty
             logger.info(f"      $CYAN{line}")
 
 
-def log_msg_handler(c: Cortex, e: NewMessageEvent): # Renamed type hint
+def log_msg_handler(c: Cortex, e: NewMessageEvent):
     global MSG_LOG_LAST_STACK_ID
     if e.stack.id() == MSG_LOG_LAST_STACK_ID:
         return
@@ -108,7 +108,7 @@ def log_msg_handler(c: Cortex, e: NewMessageEvent): # Renamed type hint
     MSG_LOG_LAST_STACK_ID = e.stack.id()
 
 
-def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
+def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
     """
     Отправляет приветственное сообщение.
     """
@@ -133,7 +133,7 @@ def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEven
     Thread(target=c.send_message, args=(chat_id, text, chat_name), daemon=True).start()
 
 
-def add_old_user_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
+def add_old_user_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
     """
     Добавляет пользователя в список написавших.
     """
@@ -150,7 +150,7 @@ def add_old_user_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedE
     cortex_tools.cache_old_users(c.old_users)
 
 
-def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
+def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
     """
     Проверяет, является ли сообщение командой, и если да, отправляет ответ на данную команду.
     """
@@ -174,7 +174,7 @@ def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChanged
     Thread(target=c.send_message, args=(chat_id, response_text, chat_name), daemon=True).start()
 
 
-def old_send_new_msg_notification_handler(c: Cortex, e: LastChatMessageChangedEvent): # Renamed type hint
+def old_send_new_msg_notification_handler(c: Cortex, e: LastChatMessageChangedEvent):
     if any([not c.old_mode_enabled, not c.telegram, not e.chat.unread,
             c.bl_msg_notification_enabled and e.chat.name in c.blacklist,
             e.chat.last_message_type is not MessageTypes.NON_SYSTEM, str(e.chat).strip().lower() in c.AR_CFG.sections(),
@@ -184,7 +184,7 @@ def old_send_new_msg_notification_handler(c: Cortex, e: LastChatMessageChangedEv
     if user in c.blacklist:
         user = f"🚷 {user}"
     elif e.chat.last_by_bot:
-        user = f"🧠 {user}" # Changed emoji
+        user = f"🧠 {user}"
     else:
         user = f"👤 {user}"
     text = f"<i><b>{user}: </b></i><code>{utils.escape(str(e.chat))}</code>"
@@ -193,7 +193,7 @@ def old_send_new_msg_notification_handler(c: Cortex, e: LastChatMessageChangedEv
            daemon=True).start()
 
 
-def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None: # Renamed type hint
+def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None:
     """
     Отправляет уведомление о новом сообщении в телеграм.
     """
@@ -237,7 +237,7 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None: # 
     last_badge = None
     last_by_vertex = False
     for i in events:
-        message_text = str(i.message) # Changed variable name for clarity
+        message_text = str(i.message)
         if message_text.strip().lower() in c.AR_CFG.sections() and len(events) < 2:
             return
         elif message_text.startswith("!автовыдача") and len(events) < 2:
@@ -246,7 +246,7 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None: # 
                 i.message.badge == last_badge and i.message.by_vertex == last_by_vertex:
             author = ""
         elif i.message.author_id == c.account.id:
-            author = f"<i><b>🤖 {_('you')} (<i>FPCortex</i>):</b></i> " if i.message.by_bot else f"<i><b>🫵 {_('you')}:</b></i> " # Changed name
+            author = f"<i><b>🤖 {_('you')} (<i>FPCortex</i>):</b></i> " if i.message.by_bot else f"<i><b>🫵 {_('you')}:</b></i> "
             if i.message.is_autoreply:
                 author = f"<i><b>📦 {_('you')} ({i.message.badge}):</b></i> "
         elif i.message.author_id == 0:
@@ -260,9 +260,9 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None: # 
             elif i.message.author in c.blacklist:
                 author = f"<i><b>🚷 {i.message.author}: </b></i>"
             elif i.message.by_bot:
-                author = f"<i><b>🧠 {i.message.author}: </b></i>" # Changed emoji
+                author = f"<i><b>🧠 {i.message.author}: </b></i>"
             elif i.message.by_vertex:
-                author = f"<i><b>🐺 {i.message.author}: </b></i>" # TODO: Rename Vertex?
+                author = f"<i><b>🐺 {i.message.author}: </b></i>"
         else:
             author = f"<i><b>🆘 {i.message.author} ({_('support')}): </b></i>"
         msg_text = f"<code>{utils.escape(i.message.text)}</code>" if i.message.text else \
@@ -278,7 +278,7 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None: # 
            daemon=True).start()
 
 
-def send_review_notification(c: Cortex, order: Order, chat_id: int, reply_text: str | None): # Renamed type hint
+def send_review_notification(c: Cortex, order: Order, chat_id: int, reply_text: str | None):
     if not c.telegram:
         return
     reply_text = _("ntfc_review_reply_text").format(utils.escape(reply_text)) if reply_text else ""
@@ -290,7 +290,7 @@ def send_review_notification(c: Cortex, order: Order, chat_id: int, reply_text: 
            daemon=True).start()
 
 
-def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
+def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
     if not c.old_mode_enabled:
         if isinstance(e, LastChatMessageChangedEvent):
             return
@@ -310,23 +310,22 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
         try:
             order = c.get_order_from_object(obj)
             if order is None:
-                raise Exception("Не удалось получить объект заказа.")  # locale
+                raise Exception("Не удалось получить объект заказа.")
         except:
-            logger.error(f"Не удалось получить информацию о заказе для сообщения: \"{message_text}\".")  # locale
+            logger.error(f"Не удалось получить информацию о заказе для сообщения: \"{message_text}\".")
             logger.debug("TRACEBACK", exc_info=True)
             return
 
         if not order.review or not order.review.stars:
             return
 
-        logger.info(f"Изменен отзыв на заказ #{order.id}.")  # locale
+        logger.info(f"Изменен отзыв на заказ #{order.id}.")
 
         toggle = f"star{order.review.stars}Reply"
-        text_key = f"star{order.review.stars}ReplyText" # Renamed variable for clarity
+        text_key = f"star{order.review.stars}ReplyText"
         reply_text = None
         if c.MAIN_CFG["ReviewReply"].getboolean(toggle) and c.MAIN_CFG["ReviewReply"].get(text_key):
             try:
-                # Укорачиваем текст до 999 символов (оставляем 1 на спецсимвол), до 10 строк
                 def format_text4review(text_: str):
                     max_l = 999
                     text_ = text_[:max_l + 1]
@@ -336,11 +335,9 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
                         for char in (".", "!", "\n"):
                             index1 = text_.rfind(char)
                             indexes.extend([index1, text_[:index1].rfind(char)])
-                        text_ = text_[:max(indexes, key=lambda x: (x < ln - 1, x))] + "🧠" # Changed emoji
+                        text_ = text_[:max(indexes, key=lambda x: (x < ln - 1, x))] + "🧠"
                     text_ = text_.strip()
                     while text_.count("\n") > 9 and text.count("\n\n") > 1:
-                        # заменяем с конца все двойные переносы строк на одинарные, но оставляем как можно больше
-                        # переносов строк и не менее одного двойного переноса
                         text_ = text_[::-1].replace("\n\n", "\n",
                                                     min([text_.count("\n\n") - 1, text_.count("\n") - 9]))[::-1]
                     if text_.count("\n") > 9:
@@ -351,14 +348,14 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
                 reply_text = format_text4review(reply_text)
                 c.account.send_review(order.id, reply_text)
             except:
-                logger.error(f"Произошла ошибка при ответе на отзыв {order.id}.")  # locale
+                logger.error(f"Произошла ошибка при ответе на отзыв {order.id}.")
                 logger.debug("TRACEBACK", exc_info=True)
         send_review_notification(c, order, chat_id, reply_text)
 
     Thread(target=send_reply, daemon=True).start()
 
 
-def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
+def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
     """
     Отправляет уведомление о введенной команде в телеграм.
     """
@@ -380,7 +377,7 @@ def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMe
         return
 
     if not c.AR_CFG[command].get("notificationText"):
-        text = f"🧑‍💻 Пользователь <b><i>{username}</i></b> ввел команду <code>{utils.escape(command)}</code>."  # locale
+        text = f"🧑‍💻 Пользователь <b><i>{username}</i></b> ввел команду <code>{utils.escape(command)}</code>."
     else:
         text = cortex_tools.format_msg_text(c.AR_CFG[command]["notificationText"], obj)
 
@@ -388,7 +385,7 @@ def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMe
                                                       utils.NotificationTypes.command), daemon=True).start()
 
 
-def test_auto_delivery_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent): # Renamed type hint
+def test_auto_delivery_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
     """
     Выполняет тест автовыдачи.
     """
@@ -404,12 +401,12 @@ def test_auto_delivery_handler(c: Cortex, e: NewMessageEvent | LastChatMessageCh
 
     split = message_text.split()
     if len(split) < 2:
-        logger.warning("Одноразовый ключ автовыдачи не обнаружен.")  # locale
+        logger.warning("Одноразовый ключ автовыдачи не обнаружен.")
         return
 
     key = split[1].strip()
     if key not in c.delivery_tests:
-        logger.warning("Невалидный одноразовый ключ автовыдачи.")  # locale
+        logger.warning("Невалидный одноразовый ключ автовыдачи.")
         return
 
     lot_name = c.delivery_tests[key]
@@ -427,25 +424,25 @@ def test_auto_delivery_handler(c: Cortex, e: NewMessageEvent | LastChatMessageCh
     c.run_handlers(c.new_order_handlers, (c, fake_event,))
 
 
-def send_categories_raised_notification_handler(c: Cortex, cat: types.Category, error_text: str = "") -> None: # Renamed type hint
+def send_categories_raised_notification_handler(c: Cortex, cat: types.Category, error_text: str = "") -> None:
     """
     Отправляет уведомление о поднятии лотов в Telegram.
     """
     if not c.telegram:
         return
 
-    text = f"""⤴️<b><i>Поднял все лоты категории</i></b> <code>{cat.name}</code>\n<tg-spoiler>{error_text}</tg-spoiler>"""  # locale
+    text = f"""⤴️<b><i>Поднял все лоты категории</i></b> <code>{cat.name}</code>\n<tg-spoiler>{error_text}</tg-spoiler>"""
     Thread(target=c.telegram.send_notification,
            args=(text,),
            kwargs={"notification_type": utils.NotificationTypes.lots_raise}, daemon=True).start()
 
 
 # Изменен список ордеров (REGISTER_TO_ORDERS_LIST_CHANGED)
-def get_lot_config_by_name(c: Cortex, name: str) -> configparser.SectionProxy | None: # Renamed type hint
+def get_lot_config_by_name(c: Cortex, name: str) -> configparser.SectionProxy | None:
     """
     Ищет секцию лота в конфиге автовыдачи.
 
-    :param c: объект кортекса. # Renamed doc
+    :param c: объект кортекса.
     :param name: название лота.
 
     :return: секцию конфига или None.
@@ -463,8 +460,8 @@ def check_products_amount(config_obj: configparser.SectionProxy) -> int:
     return cortex_tools.count_products(f"storage/products/{file_name}")
 
 
-def update_current_lots_handler(c: Cortex, e: OrdersListChangedEvent): # Renamed type hint
-    logger.info("Получаю информацию о лотах...")  # locale
+def update_current_lots_handler(c: Cortex, e: OrdersListChangedEvent):
+    logger.info("Получаю информацию о лотах...")
     attempts = 3
     while attempts:
         try:
@@ -472,16 +469,16 @@ def update_current_lots_handler(c: Cortex, e: OrdersListChangedEvent): # Renamed
             c.curr_profile_last_tag = e.runner_tag
             break
         except:
-            logger.error("Произошла ошибка при получении информации о лотах.")  # locale
+            logger.error("Произошла ошибка при получении информации о лотах.")
             logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
             time.sleep(2)
     else:
-        logger.error("Не удалось получить информацию о лотах: превышено кол-во попыток.")  # locale
+        logger.error("Не удалось получить информацию о лотах: превышено кол-во попыток.")
         return
 
 
-def update_profile_lots_handler(c: Cortex, e: OrdersListChangedEvent): # Renamed type hint
+def update_profile_lots_handler(c: Cortex, e: OrdersListChangedEvent):
     """Обновляет лоты в c.profile"""
     if c.curr_profile_last_tag != e.runner_tag or c.profile_last_tag == e.runner_tag:
         return
@@ -493,14 +490,14 @@ def update_profile_lots_handler(c: Cortex, e: OrdersListChangedEvent): # Renamed
 
 
 # Новый ордер (REGISTER_TO_NEW_ORDER)
-def log_new_order_handler(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
+def log_new_order_handler(c: Cortex, e: NewOrderEvent, *args):
     """
     Логирует новый заказ.
     """
     logger.info(f"Новый заказ! ID: $YELLOW#{e.order.id}$RESET")
 
 
-def setup_event_attributes_handler(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
+def setup_event_attributes_handler(c: Cortex, e: NewOrderEvent, *args):
     config_section_name = None
     config_section_obj = None
     lot_description = e.order.description
@@ -541,12 +538,12 @@ def setup_event_attributes_handler(c: Cortex, e: NewOrderEvent, *args): # Rename
         setattr(e, i, attributes[i])
 
     if config_section_obj is None:
-        logger.info("Лот не найден в конфиге авто-выдачи!")  # todo
+        logger.info("Лот не найден в конфиге авто-выдачи!")
     else:
-        logger.info("Лот найден в конфиге авто-выдачи!")  # todo
+        logger.info("Лот найден в конфиге авто-выдачи!")
 
 
-def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
+def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args):
     """
     Отправляет уведомления о новом заказе в телеграм.
     """
@@ -574,7 +571,7 @@ def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args): # R
            daemon=True).start()
 
 
-def deliver_goods(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
+def deliver_goods(c: Cortex, e: NewOrderEvent, *args):
     chat_id = c.account.get_chat_by_name(e.order.buyer_username).id
     cfg_obj = getattr(e, "config_section_obj")
     delivery_text = cortex_tools.format_order_text(cfg_obj["response"], e.order)
@@ -588,29 +585,29 @@ def deliver_goods(c: Cortex, e: NewOrderEvent, *args): # Renamed type hint
             delivery_text = delivery_text.replace("$product", "\n".join(products).replace("\\n", "\n"))
     except Exception as exc:
         logger.error(
-            f"Произошла ошибка при получении товаров для заказа $YELLOW{e.order.id}: {str(exc)}$RESET")  # locale
-        logger.debug("TRACEBACK", exc_info=True) # Use exc_info instead of exc
+            f"Произошла ошибка при получении товаров для заказа $YELLOW{e.order.id}: {str(exc)}$RESET")
+        logger.debug("TRACEBACK", exc_info=True)
         setattr(e, "error", 1)
         setattr(e, "error_text",
-                f"Произошла ошибка при получении товаров для заказа {e.order.id}: {str(exc)}")  # locale
+                f"Произошла ошибка при получении товаров для заказа {e.order.id}: {str(exc)}")
         return
 
     result = c.send_message(chat_id, delivery_text, e.order.buyer_username)
     if not result:
-        logger.error(f"Не удалось отправить товар для ордера $YELLOW{e.order.id}$RESET.")  # locale
+        logger.error(f"Не удалось отправить товар для ордера $YELLOW{e.order.id}$RESET.")
         setattr(e, "error", 1)
-        setattr(e, "error_text", f"Не удалось отправить сообщение с товаром для заказа {e.order.id}.")  # locale
+        setattr(e, "error_text", f"Не удалось отправить сообщение с товаром для заказа {e.order.id}.")
         if file_name and products:
             cortex_tools.add_products(f"storage/products/{file_name}", products, at_zero_position=True)
     else:
-        logger.info(f"Товар для заказа {e.order.id} выдан.")  # locale
+        logger.info(f"Товар для заказа {e.order.id} выдан.")
         setattr(e, "delivered", True)
         setattr(e, "delivery_text", delivery_text)
         setattr(e, "goods_delivered", amount)
         setattr(e, "goods_left", goods_left)
 
 
-def deliver_product_handler(c: Cortex, e: NewOrderEvent, *args) -> None: # Renamed type hint
+def deliver_product_handler(c: Cortex, e: NewOrderEvent, *args) -> None:
     """
     Обертка для deliver_product(), обрабатывающая ошибки.
     """
@@ -618,13 +615,13 @@ def deliver_product_handler(c: Cortex, e: NewOrderEvent, *args) -> None: # Renam
         return
     if e.order.buyer_username in c.blacklist and c.bl_delivery_enabled:
         logger.info(f"Пользователь {e.order.buyer_username} находится в ЧС и включена блокировка автовыдачи. "
-                    f"$YELLOW(ID: {e.order.id})$RESET")  # locale
+                    f"$YELLOW(ID: {e.order.id})$RESET")
         return
 
     if (config_section_obj := getattr(e, "config_section_obj")) is None:
         return
     if config_section_obj.getboolean("disable"):
-        logger.info(f"Для лота \"{e.order.description}\" отключена автовыдача.")  # locale
+        logger.info(f"Для лота \"{e.order.description}\" отключена автовыдача.")
         return
 
     c.run_handlers(c.pre_delivery_handlers, (c, e))
@@ -633,7 +630,7 @@ def deliver_product_handler(c: Cortex, e: NewOrderEvent, *args) -> None: # Renam
 
 
 # REGISTER_TO_POST_DELIVERY
-def send_delivery_notification_handler(c: Cortex, e: NewOrderEvent): # Renamed type hint
+def send_delivery_notification_handler(c: Cortex, e: NewOrderEvent):
     """
     Отправляет уведомление в телеграм об отправке товара.
     """
@@ -647,17 +644,17 @@ def send_delivery_notification_handler(c: Cortex, e: NewOrderEvent): # Renamed t
         text = f"""✅ Успешно выдал товар для ордера <code>{e.order.id}</code>.\n
 🛒 <b><i>Товар:</i></b>
 <code>{utils.escape(getattr(e, "delivery_text"))}</code>\n
-📋 <b><i>Осталось товаров: </i></b>{amount}"""  # locale
+📋 <b><i>Осталось товаров: </i></b>{amount}"""
 
     Thread(target=c.telegram.send_notification, args=(text,),
            kwargs={"notification_type": utils.NotificationTypes.delivery}, daemon=True).start()
 
 
-def update_lot_state(cortex_instance: Cortex, lot: types.LotShortcut, task: int) -> bool: # Renamed var
+def update_lot_state(cortex_instance: Cortex, lot: types.LotShortcut, task: int) -> bool:
     """
     Обновляет состояние лота
 
-    :param cortex_instance: объект Кортекса. # Renamed doc
+    :param cortex_instance: объект Кортекса.
     :param lot: объект лота.
     :param task: -1 - деактивировать лот. 1 - активировать лот.
 
@@ -670,27 +667,27 @@ def update_lot_state(cortex_instance: Cortex, lot: types.LotShortcut, task: int)
             if task == 1:
                 lot_fields.active = True
                 cortex_instance.account.save_lot(lot_fields)
-                logger.info(f"Восстановил лот $YELLOW{lot.description}$RESET.")  # locale
+                logger.info(f"Восстановил лот $YELLOW{lot.description}$RESET.")
             elif task == -1:
                 lot_fields.active = False
                 cortex_instance.account.save_lot(lot_fields)
-                logger.info(f"Деактивировал лот $YELLOW{lot.description}$RESET.")  # locale
+                logger.info(f"Деактивировал лот $YELLOW{lot.description}$RESET.")
             return True
         except Exception as e:
             if isinstance(e, exceptions.RequestFailedError) and e.status_code == 404:
-                logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET:"  # locale
+                logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET:"
                              "лот не найден.")
                 return False
-            logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET.")  # locale
+            logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET.")
             logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
             time.sleep(2)
     logger.error(
-        f"Не удалось изменить состояние лота $YELLOW{lot.description}$RESET: превышено кол-во попыток.")  # locale
+        f"Не удалось изменить состояние лота $YELLOW{lot.description}$RESET: превышено кол-во попыток.")
     return False
 
 
-def update_lots_states(cortex_instance: Cortex, event: NewOrderEvent): # Renamed var
+def update_lots_states(cortex_instance: Cortex, event: NewOrderEvent):
     if not any([cortex_instance.autorestore_enabled, cortex_instance.autodisable_enabled]):
         return
     if cortex_instance.curr_profile_last_tag != event.runner_tag or cortex_instance.last_state_change_tag == event.runner_tag:
@@ -749,14 +746,14 @@ def update_lots_states(cortex_instance: Cortex, event: NewOrderEvent): # Renamed
             time.sleep(0.5)
 
     if deactivated:
-        lots = "\n".join(deactivated)  # locale
+        lots = "\n".join(deactivated)
         text = f"""🔴 <b>Деактивировал лоты:</b>
 
 <code>{lots}</code>"""
         Thread(target=cortex_instance.telegram.send_notification, args=(text,),
                kwargs={"notification_type": utils.NotificationTypes.lots_deactivate}, daemon=True).start()
     if restored:
-        lots = "\n".join(restored)  # locale
+        lots = "\n".join(restored)
         text = f"""🟢 <b>Активировал лоты:</b>
 
 <code>{lots}</code>"""
@@ -765,12 +762,12 @@ def update_lots_states(cortex_instance: Cortex, event: NewOrderEvent): # Renamed
     cortex_instance.last_state_change_tag = event.runner_tag
 
 
-def update_lots_state_handler(cortex_instance: Cortex, event: NewOrderEvent, *args): # Renamed var
+def update_lots_state_handler(cortex_instance: Cortex, event: NewOrderEvent, *args):
     Thread(target=update_lots_states, args=(cortex_instance, event), daemon=True).start()
 
 
 # BIND_TO_ORDER_STATUS_CHANGED
-def send_thank_u_message_handler(c: Cortex, e: OrderStatusChangedEvent): # Renamed type hint
+def send_thank_u_message_handler(c: Cortex, e: OrderStatusChangedEvent):
     """
     Отправляет ответное сообщение на подтверждение заказа.
     """
@@ -779,14 +776,14 @@ def send_thank_u_message_handler(c: Cortex, e: OrderStatusChangedEvent): # Renam
 
     text = cortex_tools.format_order_text(c.MAIN_CFG["OrderConfirm"]["replyText"], e.order)
     chat = c.account.get_chat_by_name(e.order.buyer_username, True)
-    logger.info(f"Пользователь $YELLOW{e.order.buyer_username}$RESET подтвердил выполнение заказа "  # locale
-                f"$YELLOW{e.order.id}.$RESET")  # locale
-    logger.info(f"Отправляю ответное сообщение ...")  # locale
+    logger.info(f"Пользователь $YELLOW{e.order.buyer_username}$RESET подтвердил выполнение заказа "
+                f"$YELLOW{e.order.id}.$RESET")
+    logger.info(f"Отправляю ответное сообщение ...")
     Thread(target=c.send_message, args=(chat.id, text, e.order.buyer_username),
            kwargs={'watermark': c.MAIN_CFG["OrderConfirm"].getboolean("watermark")}, daemon=True).start()
 
 
-def send_order_confirmed_notification_handler(cortex_instance: Cortex, event: OrderStatusChangedEvent): # Renamed var
+def send_order_confirmed_notification_handler(cortex_instance: Cortex, event: OrderStatusChangedEvent):
     """
     Отправляет уведомление о подтверждении заказа в Telegram.
     """
@@ -794,7 +791,7 @@ def send_order_confirmed_notification_handler(cortex_instance: Cortex, event: Or
         return
 
     chat = cortex_instance.account.get_chat_by_name(event.order.buyer_username, True)
-    Thread(target=cortex_instance.telegram.send_notification,  # locale
+    Thread(target=cortex_instance.telegram.send_notification,
            args=(
                f"""🪙 Пользователь <a href="https://funpay.com/chat/?node={chat.id}">{event.order.buyer_username}</a> """
                f"""подтвердил выполнение заказа <code>{event.order.id}</code>. (<code>{event.order.price} {event.order.currency}</code>)""",
@@ -803,7 +800,7 @@ def send_order_confirmed_notification_handler(cortex_instance: Cortex, event: Or
            daemon=True).start()
 
 
-def send_bot_started_notification_handler(c: Cortex, *args): # Renamed type hint
+def send_bot_started_notification_handler(c: Cortex, *args):
     """
     Отправляет уведомление о запуске бота в телеграм.
     """

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from typing import TYPE_CHECKING
-from tg_bot import utils, static_keyboards as skb, keyboards as kb, CBT # keyboards as kb не используется, но оставим на всякий случай
+from tg_bot import utils, static_keyboards as skb, keyboards as kb, CBT
 import telebot.apihelper
 from Utils.cortex_tools import validate_proxy, cache_proxy_dict, check_proxy
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
@@ -94,7 +94,7 @@ def init_proxy_cp(cortex_instance: Cortex, *args):
         status_text = f"\n\n🚦 <b>{_('proxy_global_status_header')}:</b>" \
                       f"\n  {_('proxy_module_status_label')} {proxy_enabled_text}" \
                       f"\n  {_('proxy_health_check_label')} {check_enabled_text}" \
-                      f"\n  {_('proxy_check_interval_info', check_interval_min)}" \
+                      f"\n  {_('proxy_check_interval_info', interval=check_interval_min)}" \
                       f"\n🔌 <b>{_('proxy_current_in_use_label')}</b> {current_proxy_display}"
 
         bot.edit_message_text(f'{_("desc_proxy")}{status_text}', c.message.chat.id, c.message.id,
@@ -153,14 +153,14 @@ def init_proxy_cp(cortex_instance: Cortex, *args):
         c.data = f"{CBT.PROXY}:{offset}"
         
         if not chosen_proxy_str:
-            bot.answer_callback_query(c.id, _("proxy_select_error_not_found", language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("proxy_select_error_not_found"), show_alert=True)
             open_proxy_list(c)
             return
 
         try:
             login, password, ip, port = validate_proxy(chosen_proxy_str)
         except ValueError:
-            bot.answer_callback_query(c.id, _("proxy_select_error_invalid_format", language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("proxy_select_error_invalid_format"), show_alert=True)
             open_proxy_list(c)
             return
             
@@ -179,9 +179,9 @@ def init_proxy_cp(cortex_instance: Cortex, *args):
             }
             cortex_instance.account.proxy = proxy_for_requests
             cortex_instance.proxy = proxy_for_requests
-            bot.answer_callback_query(c.id, _("proxy_selected_and_applied", proxy_str=utils.escape(chosen_proxy_str), language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("proxy_selected_and_applied", proxy_str=utils.escape(chosen_proxy_str)), show_alert=True)
         else:
-            bot.answer_callback_query(c.id, _("proxy_selected_not_applied", proxy_str=utils.escape(chosen_proxy_str), language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("proxy_selected_not_applied", proxy_str=utils.escape(chosen_proxy_str)), show_alert=True)
 
         open_proxy_list(c)
 
@@ -213,14 +213,14 @@ def init_proxy_cp(cortex_instance: Cortex, *args):
                 del tg.pr_dict[proxy_to_delete_str]
             
             logger.info(f"Прокси {proxy_to_delete_str} удален пользователем {c.from_user.username}.")
-            bot.answer_callback_query(c.id, _("proxy_deleted_successfully", proxy_str=utils.escape(proxy_to_delete_str), language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("proxy_deleted_successfully", proxy_str=utils.escape(proxy_to_delete_str)), show_alert=True)
 
             if not cortex_instance.MAIN_CFG["Proxy"].getboolean("enable") and proxy_to_delete_str == current_active_proxy_str:
                 for key_to_clear in ("ip", "port", "login", "password"):
                     cortex_instance.MAIN_CFG["Proxy"][key_to_clear] = ""
                 cortex_instance.save_config(cortex_instance.MAIN_CFG, "configs/_main.cfg")
         else:
-            bot.answer_callback_query(c.id, _("proxy_delete_error_not_found", language=localizer.current_language), show_alert=True)
+            bot.answer_callback_query(c.id, _("proxy_delete_error_not_found"), show_alert=True)
 
         open_proxy_list(c)
 
