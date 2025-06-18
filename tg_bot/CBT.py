@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/tg_bot/CBT.py
-
 """
 CBT - CallBack Texts. В данном модуле расписаны все CallBack'и для Telegram клавиатуры (+ User-state'ы)
 """
@@ -697,4 +695,7 @@ offset: int - смещение списка прокси.
 proxy_id: int - ID proxy
 """
 
-# END OF FILE FunPayCortex/tg_bot/CBT.py
+BALANCE_REFRESH = "73"
+"""
+Callback для обновления информации о балансе.
+"""

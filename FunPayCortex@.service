@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/FunPayCortex@.service
-
 [Install]
 WantedBy=multi-user.target
 
@@ -40,5 +38,3 @@ ReadWritePaths=/home/%i/FunPayCortex /home/%i/pyvenv -/run/FunPayCortex
 After=network.target
 Description=FunPayCortex Bot Service (on %I)
 # Documentation=YOUR_DOCUMENTATION_URL_HERE # Add your documentation URL if you have one
-
-# END OF FILE FunPayCortex/FunPayCortex@.service

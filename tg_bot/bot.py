@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/tg_bot/bot.py
-
 """
 В данном модуле написан Telegram бот.
 """
@@ -62,6 +60,7 @@ class TGBot:
         self.commands = {
             "menu": "cmd_menu",
             "profile": "cmd_profile",
+            "balance": "cmd_balance",
             "restart": "cmd_restart",
             "check_updates": "cmd_check_updates",
             "update": "cmd_update",
@@ -146,7 +145,7 @@ class TGBot:
                 or state["state"] not in self.file_handlers:
             return
         try:
-            self.file_handlers[state["state"]](m)
+            self.file_handlers[state["state"]](self, m)
         except Exception as e:
             logger.error(_("log_tg_handler_error") + f" (File Handler: {state['state']})")
             logger.debug(f"Error details: {e}", exc_info=True)
@@ -252,6 +251,25 @@ class TGBot:
     def send_profile(self, m: Message):
         self.bot.send_message(m.chat.id, utils.generate_profile_text(self.cortex),
                               reply_markup=skb.REFRESH_BTN())
+    
+    def send_balance(self, m: Message):
+        balance_text = utils.generate_balance_text(self.cortex)
+        self.bot.send_message(m.chat.id, balance_text, reply_markup=skb.BALANCE_REFRESH_BTN())
+    
+    def update_balance(self, c: CallbackQuery):
+        new_msg = self.bot.send_message(c.message.chat.id, _("updating_profile"))
+        try:
+            self.cortex.balance = self.cortex.get_balance()
+            self.bot.delete_message(new_msg.chat.id, new_msg.id)
+            self.bot.edit_message_text(utils.generate_balance_text(self.cortex), c.message.chat.id,
+                                       c.message.id, reply_markup=skb.BALANCE_REFRESH_BTN())
+        except Exception as e:
+            self.bot.edit_message_text(_("profile_updating_error") + f"\nError: {str(e)[:100]}",
+                                       new_msg.chat.id, new_msg.id)
+            logger.error(f"Ошибка при обновлении баланса через TG: {e}")
+            logger.debug("TRACEBACK", exc_info=True)
+        finally:
+            self.bot.answer_callback_query(c.id)
 
     def act_change_cookie(self, m: Message):
         result = self.bot.send_message(m.chat.id, _("act_change_golden_key"), reply_markup=skb.CLEAR_STATE_BTN())
@@ -1002,6 +1020,8 @@ class TGBot:
 
         self.msg_handler(self.send_settings_menu, commands=["menu", "start"])
         self.msg_handler(self.send_profile, commands=["profile"])
+        self.msg_handler(self.send_balance, commands=["balance"])
+        self.cbq_handler(self.update_balance, lambda c: c.data == CBT.BALANCE_REFRESH)
         self.msg_handler(self.act_change_cookie, commands=["change_cookie", "golden_key"])
         self.msg_handler(self.change_cookie, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY))
         self.cbq_handler(self.update_profile, lambda c: c.data == CBT.UPDATE_PROFILE)
@@ -1230,5 +1250,3 @@ class TGBot:
     def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
-
-# END OF FILE FunPayCortex/tg_bot/bot.py

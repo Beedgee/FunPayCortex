@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/tg_bot/utils.py
-
 """
 В данном модуле написаны инструменты, которыми пользуется Telegram бот.
 """
@@ -177,7 +175,7 @@ def bool_to_text(value: bool | int | str | None, on: str = "🟢", off: str = "�
         try:
             if int(value):
                 return on
-        except ValueError:
+        except (ValueError, TypeError):
             pass
     return off
 
@@ -283,6 +281,29 @@ def generate_profile_text(cortex_instance: Cortex) -> str:
 
 ⏱️ {_('gl_last_update')}: <code>{time.strftime('%H:%M:%S %d.%m.%Y', time.localtime(account.last_update))}</code>"""
 
+def generate_balance_text(cortex_instance: Cortex) -> str:
+    """
+    Генерирует текст с информацией о балансе аккаунта.
+    """
+    account = cortex_instance.account
+    balance = cortex_instance.balance
+    
+    return f"""💰 <b>{_("mm_balance")} «{escape(account.username)}»</b>
+
+🇷🇺 <b>RUB:</b>
+    <i>{_("acc_balance_available")}:</i> <code>{balance.available_rub}₽</code>
+    <i>Всего:</i> <code>{balance.total_rub}₽</code>
+
+🇺🇸 <b>USD:</b>
+    <i>{_("acc_balance_available")}:</i> <code>{balance.available_usd}$</code>
+    <i>Всего:</i> <code>{balance.total_usd}$</code>
+
+🇪🇺 <b>EUR:</b>
+    <i>{_("acc_balance_available")}:</i> <code>{balance.available_eur}€</code>
+    <i>Всего:</i> <code>{balance.total_eur}€</code>
+    
+⏱️ {_('gl_last_update')}: <code>{time.strftime('%H:%M:%S %d.%m.%Y', time.localtime(account.last_update))}</code>"""
+
 def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
     """
     Генерирует текст с информацией о лоте.
@@ -324,4 +345,3 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
 🗂️ <b>{_('ea_link_goods_file').replace('🔗 ','')}:</b> {file_info_text}
 
 ⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
-# END OF FILE FunPayCortex/tg_bot/utils.py

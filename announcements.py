@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/announcements.py
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -131,5 +129,3 @@ def main(cortex_instance: Cortex):
 
 
 BIND_TO_POST_INIT = [main]
-
-# END OF FILE FunPayCortex/announcements.py

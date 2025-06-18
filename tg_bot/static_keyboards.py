@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/tg_bot/static_keyboards.py
-
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 from tg_bot import CBT
 from locales.localizer import Localizer
@@ -16,6 +14,10 @@ def REFRESH_BTN() -> K:
     return K().add(B(_("gl_refresh"), callback_data=CBT.UPDATE_PROFILE))
 
 
+def BALANCE_REFRESH_BTN() -> K:
+    return K().add(B(_("gl_refresh"), callback_data=CBT.BALANCE_REFRESH))
+
+
 def SETTINGS_SECTIONS() -> K:
     return K() \
         .add(B(_("mm_language"), callback_data=f"{CBT.CATEGORY}:lang")) \
@@ -23,6 +25,7 @@ def SETTINGS_SECTIONS() -> K:
         .add(B(_("mm_notifications"), callback_data=f"{CBT.CATEGORY}:tg")) \
         .add(B(_("mm_autoresponse"), callback_data=f"{CBT.CATEGORY}:ar")) \
         .add(B(_("mm_autodelivery"), callback_data=f"{CBT.CATEGORY}:ad")) \
+        .add(B(_("mm_balance"), callback_data=CBT.BALANCE_REFRESH)) \
         .add(B(_("mm_plugins"), callback_data=f"{CBT.PLUGINS_LIST}:0")) \
         .add(B(_("mm_templates"), callback_data=f"{CBT.TMPLT_LIST}:0")) \
         .add(B(_("gl_next"), callback_data=CBT.MAIN2))
@@ -67,4 +70,3 @@ def CONFIGS_UPLOADER() -> K:
         .add(B(_("cfg_upload_ar"), callback_data="upload_auto_response_config")) \
         .add(B(_("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
-# END OF FILE FunPayCortex/tg_bot/static_keyboards.py
