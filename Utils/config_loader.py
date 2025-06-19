@@ -90,6 +90,10 @@ def load_main_config(config_path: str):
             "blockLogin": ["0", "1"]
         },
 
+        "Manager": {
+            "registration_key": "any+empty"
+        },
+
         "BlockList": {
             "blockDelivery": ["0", "1"],
             "blockResponse": ["0", "1"],
@@ -161,7 +165,12 @@ def load_main_config(config_path: str):
 
     for section_name in values:
         if section_name not in config.sections():
-            raise ConfigParseError(config_path, section_name, SectionNotFoundError())
+            if section_name == "Manager":
+                config.add_section("Manager")
+                with open(config_path, "w", encoding="utf-8") as f:
+                    config.write(f)
+            else:
+                raise ConfigParseError(config_path, section_name, SectionNotFoundError())
 
         # UPDATE section contains logic to add missing keys or update old keys for backward compatibility.
         # This part might need adjustments if the config structure changes significantly.
@@ -177,6 +186,10 @@ def load_main_config(config_path: str):
             # UPDATE section
             if section_name == "FunPay" and param_name == "oldMsgGetMode" and param_name not in config[section_name]:
                 config.set("FunPay", "oldMsgGetMode", "0")
+                with open(config_path, "w", encoding="utf-8") as f:
+                    config.write(f)
+            elif section_name == "Manager" and param_name == "registration_key" and param_name not in config[section_name]:
+                config.set("Manager", "registration_key", "")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
             elif section_name == "Greetings" and param_name == "ignoreSystemMessages" and param_name not in config[

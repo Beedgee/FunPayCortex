@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/first_setup.py
+# START OF FILE FunPayCortex-main/first_setup.py
 
 """
 В данном модуле написана подпрограмма первичной настройки FunPayCortex.
@@ -30,6 +30,10 @@ default_config = {
         "token": "",
         "secretKeyHash": "УстановитеСвойПароль",
         "blockLogin": "0"
+    },
+
+    "Manager": {
+        "registration_key": ""
     },
 
     "BlockList": {
@@ -200,6 +204,13 @@ def first_setup():
     config.set("Telegram", "enabled", "1")
     config.set("Telegram", "token", token)
     config.set("Telegram", "secretKeyHash", hash_password(password))
+
+    print(f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}"
+          f"Теперь можно настроить ключ регистрации для менеджеров. Этот ключ они будут вводить боту для получения ограниченного доступа.\n"
+          f"Если не хочешь настраивать это сейчас - просто нажми Enter. {Fore.RED}ᴖ̮ ̮ᴖ{Style.RESET_ALL}")
+    manager_key = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
+    if manager_key:
+        config.set("Manager", "registration_key", manager_key)
 
     while True:
         print(f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}"

@@ -1,3 +1,5 @@
+# START OF FILE FunPayCortex-main/tg_bot/utils.py
+
 """
 В данном модуле написаны инструменты, которыми пользуется Telegram бот.
 """
@@ -45,9 +47,10 @@ class NotificationTypes:
     important_announcement = "14"
 
 
-def load_authorized_users() -> dict[int, dict[str, bool | None | str]]:
+def load_authorized_users() -> dict[int, dict[str, str | None]]:
     """
     Загружает авторизированных пользователей из кэша.
+    Формат: {user_id: {"username": "...", "role": "admin" | "manager"}}
     """
     filepath = "storage/cache/tg_authorized_users.json"
     if not os.path.exists(filepath):
@@ -55,20 +58,29 @@ def load_authorized_users() -> dict[int, dict[str, bool | None | str]]:
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
-        
+
         result = {}
-        if isinstance(data, list):
+        if isinstance(data, list):  # Migration from old list format
             for user_id_val in data:
                 if isinstance(user_id_val, int):
-                    result[user_id_val] = {} 
-            save_authorized_users(result)
+                    result[user_id_val] = {"username": None, "role": None}
+            save_authorized_users(result)  # Save in new format
+            return result
         elif isinstance(data, dict):
             for k, v in data.items():
                 try:
-                    result[int(k)] = v
-                except ValueError:
+                    user_id = int(k)
+                    if isinstance(v, dict):
+                        result[user_id] = {
+                            "username": v.get("username"),
+                            "role": v.get("role")
+                        }
+                    else:  # Migration from another old dict format
+                        result[user_id] = {"username": str(v) if v else None, "role": None}
+                except (ValueError, TypeError):
                     continue
-        return result
+            return result
+        return {}
     except (json.JSONDecodeError, FileNotFoundError):
         return {}
 
@@ -104,7 +116,7 @@ def load_answer_templates() -> list[str]:
 
 def save_authorized_users(users: dict[int, dict]) -> None:
     """
-    Сохраняет ID авторизированных пользователей.
+    Сохраняет ID и роли авторизированных пользователей.
     """
     dir_path = "storage/cache/"
     if not os.path.exists(dir_path):
@@ -133,6 +145,14 @@ def save_answer_templates(templates: list[str]) -> None:
         os.makedirs(dir_path, exist_ok=True)
     with open(os.path.join(dir_path, "answer_templates.json"), "w", encoding="utf-8") as f:
         json.dump(templates, f, ensure_ascii=False, indent=4)
+
+
+def get_user_role(users_dict: dict, user_id: int) -> str | None:
+    """Возвращает роль пользователя ('admin', 'manager') или None."""
+    user_data = users_dict.get(user_id)
+    if user_data and isinstance(user_data, dict):
+        return user_data.get("role")
+    return None
 
 
 def escape(text: str) -> str:
@@ -345,3 +365,4 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
 🗂️ <b>{_('ea_link_goods_file').replace('🔗 ','')}:</b> {file_info_text}
 
 ⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
+# END OF FILE FunPayCortex/tg_bot/utils.py

@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/keyboards.py
+# START OF FILE FunPayCortex-main/tg_bot/keyboards.py
 
 """
 Функции генерации клавиатур для суб-панелей управления.
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 
-from tg_bot import CBT, MENU_CFG
+from tg_bot import CBT, MENU_CFG, utils
 from tg_bot.utils import NotificationTypes, bool_to_text, add_navigation_buttons
 
 import Utils.cortex_tools
@@ -67,6 +67,12 @@ def power_off(instance_id: int, state: int) -> K:
 
 
 def language_settings(c: Cortex) -> K:
+    """
+    Генерирует клавиатуру настроек языка (CBT.CATEGORY:lang).
+
+    :param c: объект Cortex.
+    :return: объект клавиатуры настроек языка.
+    """
     lang = c.MAIN_CFG["Other"]["language"]
     langs = {
         "uk": "🇺🇦 Українська",
@@ -173,49 +179,71 @@ def order_confirm_reply_settings(c: Cortex):
     return kb
 
 
-def authorized_users(c: Cortex, offset: int):
+def authorized_users(c: Cortex, offset: int, current_user_id: int):
     """
     Генерирует клавиатуру со списком авторизованных пользователей (CBT.AUTHORIZED_USERS:<offset>).
     :param c: объект Cortex.
     :param offset: смещение списка пользователей.
+    :param current_user_id: ID пользователя, вызвавшего меню.
     :return: объект клавиатуры со списком пользователей.
     """
     kb = K()
     p = f"{CBT.SWITCH}:Telegram"
+    user_role = utils.get_user_role(c.telegram.authorized_users, current_user_id)
 
     def l(s):
         return '🟢' if c.MAIN_CFG["Telegram"].getboolean(s) else '🔴'
 
-    kb.add(B(_("tg_block_login", l("blockLogin")), None, f"{p}:blockLogin:{offset}"))
-    users = list(c.telegram.authorized_users.keys())[offset: offset + MENU_CFG.AUTHORIZED_USERS_BTNS_AMOUNT]
+    if user_role == "admin":
+        kb.add(B(_("tg_block_login", l("blockLogin")), None, f"{p}:blockLogin:{offset}"))
 
-    for user_id in users:
-        user_info = c.telegram.authorized_users.get(user_id, {})
+    users_dict = c.telegram.authorized_users
+    sorted_users = sorted(users_dict.items(), key=lambda item: (item[1].get('role', 'z'), item[1].get('username', str(item[0])).lower()))
+    
+    users_on_page = sorted_users[offset: offset + MENU_CFG.AUTHORIZED_USERS_BTNS_AMOUNT]
+
+    for user_id, user_info in users_on_page:
         username = user_info.get("username", f"ID: {user_id}")
-        display_name = f"👤 {username}" if username != f"ID: {user_id}" else f"🆔 {user_id}"
+        role = user_info.get("role")
+        role_emoji = "👑" if role == 'admin' else '👤' if role == 'manager' else '❓'
+        display_name = f"{role_emoji} {username}"
         kb.row(B(display_name, callback_data=f"{CBT.AUTHORIZED_USER_SETTINGS}:{user_id}:{offset}"))
 
-    kb = add_navigation_buttons(kb, offset, MENU_CFG.AUTHORIZED_USERS_BTNS_AMOUNT, len(users),
-                                len(c.telegram.authorized_users), CBT.AUTHORIZED_USERS)
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AUTHORIZED_USERS_BTNS_AMOUNT, len(users_on_page),
+                                len(sorted_users), CBT.AUTHORIZED_USERS)
+    
+    if user_role == "admin":
+        kb.row(B(_("mm_manager_settings"), callback_data=CBT.MANAGER_SETTINGS))
 
     kb.add(B(_("gl_back"), None, CBT.MAIN2))
     return kb
 
 
-def authorized_user_settings(c: Cortex, user_id: int, offset: int, user_link: bool):
+def authorized_user_settings(c: Cortex, user_id: int, offset: int, user_link: bool, current_user_id: int):
     """
     Генерирует клавиатуру с настройками пользователя (CBT.AUTHORIZED_USER_SETTINGS:<offset>).
     """
     kb = K()
     user_info = c.telegram.authorized_users.get(user_id, {})
     username = user_info.get("username", str(user_id))
+    user_role = user_info.get("role")
+    current_user_role = utils.get_user_role(c.telegram.authorized_users, current_user_id)
 
     if user_link:
         kb.add(B(f"👤 {username}", url=f"tg:user?id={user_id}"))
     else:
         kb.add(B(f"👤 {username}", callback_data=CBT.EMPTY))
+    
+    if current_user_role == 'admin' and current_user_id != user_id:
+        if user_role == 'manager':
+            kb.add(B(_("promote_to_admin"), callback_data=f"{CBT.CHANGE_USER_ROLE}:{user_id}:{offset}:admin"))
+        elif user_role == 'admin':
+            admins = [uid for uid, uinfo in c.telegram.authorized_users.items() if uinfo.get("role") == "admin"]
+            if len(admins) > 1: # Нельзя понизить последнего админа
+                kb.add(B(_("demote_to_manager"), callback_data=f"{CBT.CHANGE_USER_ROLE}:{user_id}:{offset}:manager"))
+        
+        kb.add(B(_("revoke_access"), callback_data=f"{CBT.REVOKE_USER_ACCESS}:{user_id}:{offset}"))
 
-    kb.add(B("🗑️ Отозвать доступ", callback_data=f"revoke_user_access:{user_id}:{offset}"))
     kb.add(B(_("gl_back"), None, f"{CBT.AUTHORIZED_USERS}:{offset}"))
     return kb
 

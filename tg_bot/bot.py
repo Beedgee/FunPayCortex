@@ -1,3 +1,5 @@
+# START OF FILE FunPayCortex-main/tg_bot/bot.py
+
 """
 В данном модуле написан Telegram бот.
 """
@@ -104,7 +106,8 @@ class TGBot:
         except KeyError:
             return None
         msg_id = state.get("mid")
-        del self.user_states[chat_id][user_id]
+        if user_id in self.user_states.get(chat_id, {}):
+            del self.user_states[chat_id][user_id]
         if del_msg:
             try:
                 self.bot.delete_message(chat_id, msg_id)
@@ -201,29 +204,39 @@ class TGBot:
         if m.chat.type != "private" or (self.attempts.get(m.from_user.id, 0) >= 5) or m.text is None:
             return
 
-        if not self.cortex.block_tg_login and \
-                cortex_tools.check_password(m.text, self.cortex.MAIN_CFG["Telegram"]["secretKeyHash"]):
+        user_input = m.text.strip()
+        user_id = m.from_user.id
+        username = m.from_user.username or str(user_id)
 
-            self.authorized_users[m.from_user.id] = {"username": m.from_user.username or str(m.from_user.id)}
+        # Check for Admin login
+        if not self.cortex.block_tg_login and cortex_tools.check_password(user_input, self.cortex.MAIN_CFG["Telegram"]["secretKeyHash"]):
+            self.authorized_users[user_id] = {"username": username, "role": "admin"}
             utils.save_authorized_users(self.authorized_users)
-
-            chat_id_str = str(m.chat.id)
-            if chat_id_str not in self.notification_settings:
-                self.notification_settings[chat_id_str] = self.__default_notification_settings.copy()
-            self.notification_settings[chat_id_str][NotificationTypes.critical] = 1
-            utils.save_notification_settings(self.notification_settings)
-
-            text = _("access_granted", language=lang)
-            kb_links = None
-            logger.warning(_("log_access_granted", m.from_user.username, m.from_user.id))
-            self.send_notification(text=_("access_granted_notification", m.from_user.username, m.from_user.id),
+            self.setup_chat_notifications(self.bot, m)  # Ensure notifications are set
+            logger.warning(_("log_access_granted", username, user_id))
+            self.send_notification(text=_("access_granted_notification", username, user_id),
                                    notification_type=NotificationTypes.critical, pin=True, exclude_chat_id=m.chat.id)
-        else:
-            self.attempts[m.from_user.id] = self.attempts.get(m.from_user.id, 0) + 1
-            text = _("access_denied", m.from_user.username, language=lang)
-            kb_links = None
-            logger.warning(_("log_access_attempt", m.from_user.username, m.from_user.id))
-        self.bot.send_message(m.chat.id, text, reply_markup=kb_links)
+            self.bot.send_message(m.chat.id, _("access_granted", language=lang))
+            return
+
+        # Check for Manager login
+        manager_key = self.cortex.MAIN_CFG["Manager"].get("registration_key", "").strip()
+        if manager_key and user_input == manager_key:
+            if utils.get_user_role(self.authorized_users, user_id) == "admin":
+                self.bot.send_message(m.chat.id, _("manager_reg_admin_error", language=lang))
+                return
+
+            self.authorized_users[user_id] = {"username": username, "role": "manager"}
+            utils.save_authorized_users(self.authorized_users)
+            self.setup_chat_notifications(self.bot, m)
+            logger.warning(_("log_manager_access_granted", username, user_id))
+            self.bot.send_message(m.chat.id, _("manager_access_granted", language=lang))
+            return
+
+        # Failed login attempt
+        self.attempts[user_id] = self.attempts.get(user_id, 0) + 1
+        self.bot.send_message(m.chat.id, _("access_denied", m.from_user.username, language=lang))
+        logger.warning(_("log_access_attempt", username, user_id))
 
     def ignore_unauthorized_users(self, c: CallbackQuery):
         logger.warning(_("log_click_attempt", c.from_user.username, c.from_user.id, c.message.chat.username,
@@ -245,7 +258,7 @@ class TGBot:
 
         👇 {_('cmd_menu').capitalize()}:
         """
-        self.bot.send_message(m.chat.id, start_message, reply_markup=skb.SETTINGS_SECTIONS(), disable_web_page_preview=True)
+        self.bot.send_message(m.chat.id, start_message, reply_markup=skb.SETTINGS_SECTIONS(self.cortex, m.from_user.id), disable_web_page_preview=True)
 
 
     def send_profile(self, m: Message):
@@ -253,6 +266,10 @@ class TGBot:
                               reply_markup=skb.REFRESH_BTN())
     
     def send_balance(self, m: Message):
+        user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
+        if user_role != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         balance_text = utils.generate_balance_text(self.cortex)
         self.bot.send_message(m.chat.id, balance_text, reply_markup=skb.BALANCE_REFRESH_BTN())
     
@@ -272,6 +289,10 @@ class TGBot:
             self.bot.answer_callback_query(c.id)
 
     def act_change_cookie(self, m: Message):
+        user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
+        if user_role != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         result = self.bot.send_message(m.chat.id, _("act_change_golden_key"), reply_markup=skb.CLEAR_STATE_BTN())
         self.set_state(m.chat.id, result.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY)
 
@@ -406,6 +427,9 @@ class TGBot:
             self.bot.reply_to(m, preview_html + _("watermark_deleted"))
 
     def send_logs(self, m: Message):
+        if utils.get_user_role(self.authorized_users, m.from_user.id) != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         if not os.path.exists("logs/log.log"):
             self.bot.send_message(m.chat.id, _("logfile_not_found"))
         else:
@@ -423,6 +447,9 @@ class TGBot:
 
 
     def del_logs(self, m: Message):
+        if utils.get_user_role(self.authorized_users, m.from_user.id) != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         logger.info(
             f"[IMPORTANT] Удаляю старые логи по запросу пользователя $MAGENTA@{m.from_user.username} (id: {m.from_user.id})$RESET.")
         deleted_count = 0
@@ -468,6 +495,9 @@ class TGBot:
         self.bot.send_message(m.chat.id, _("update_update"))
 
     def get_backup(self, m: Message):
+        if utils.get_user_role(self.authorized_users, m.from_user.id) != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         logger.info(
             f"[IMPORTANT] Запрос резервной копии от $MAGENTA@{m.from_user.username} (id: {m.from_user.id})$RESET.")
         backup_path = "backup.zip"
@@ -495,6 +525,9 @@ class TGBot:
         return True
 
     def update(self, m: Message):
+        if utils.get_user_role(self.authorized_users, m.from_user.id) != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         curr_tag = f"v{self.cortex.VERSION}"
         releases = updater.get_new_releases(curr_tag)
         if isinstance(releases, int):
@@ -538,10 +571,16 @@ class TGBot:
 
 
     def restart_cortex(self, m: Message):
+        if utils.get_user_role(self.authorized_users, m.from_user.id) != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         self.bot.send_message(m.chat.id, _("restarting"))
         cortex_tools.restart_program()
 
     def ask_power_off(self, m: Message):
+        if utils.get_user_role(self.authorized_users, m.from_user.id) != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         self.bot.send_message(m.chat.id, _("power_off_0"), reply_markup=kb.power_off(self.cortex.instance_id, 0))
 
     def cancel_power_off(self, c: CallbackQuery):
@@ -587,6 +626,10 @@ class TGBot:
             self.bot.reply_to(message, _("msg_sending_error", node_id, utils.escape(username or "Пользователь")), reply_markup=reply_kb)
 
     def act_upload_image(self, m: Message):
+        user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
+        if user_role != "admin":
+            self.bot.send_message(m.chat.id, _("admin_only_command"))
+            return
         cbt_state = CBT.UPLOAD_CHAT_IMAGE if m.text.startswith("/upload_chat_img") else CBT.UPLOAD_OFFER_IMAGE
         result_msg = self.bot.send_message(m.chat.id, _("send_img"), reply_markup=skb.CLEAR_STATE_BTN())
         self.set_state(m.chat.id, result_msg.id, m.from_user.id, cbt_state)
@@ -843,22 +886,22 @@ class TGBot:
         desc_text = _("desc_main")
         if c.message.content_type == 'text':
             self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
-                                   reply_markup=skb.SETTINGS_SECTIONS())
+                                   reply_markup=skb.SETTINGS_SECTIONS(self.cortex, c.from_user.id))
         else:
             try: self.bot.delete_message(c.message.chat.id, c.message.id)
             except: pass
-            self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS())
+            self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS(self.cortex, c.from_user.id))
         self.bot.answer_callback_query(c.id)
 
     def open_cp2(self, c: CallbackQuery):
         desc_text = _("desc_main")
         if c.message.content_type == 'text':
             self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
-                                   reply_markup=skb.SETTINGS_SECTIONS_2())
+                                   reply_markup=skb.SETTINGS_SECTIONS_2(self.cortex, c.from_user.id))
         else:
             try: self.bot.delete_message(c.message.chat.id, c.message.id)
             except: pass
-            self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS_2())
+            self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS_2(self.cortex, c.from_user.id))
         self.bot.answer_callback_query(c.id)
 
 
@@ -882,7 +925,7 @@ class TGBot:
         reply_markup_to_send = None
         if section_name == "Telegram":
              offset_val = int(split_data[3]) if len(split_data) > 3 else 0
-             reply_markup_to_send = kb.authorized_users(self.cortex, offset=offset_val)
+             reply_markup_to_send = kb.authorized_users(self.cortex, offset_val, c.from_user.id)
         elif section_name == "Proxy":
              offset_val = int(split_data[3]) if len(split_data) > 3 else 0
              pr_dict_for_kb = getattr(self.cortex.telegram, 'pr_dict', {})
@@ -927,7 +970,15 @@ class TGBot:
 
     def open_settings_section(self, c: CallbackQuery):
         section_key = c.data.split(":")[1]
-        user_lang = c.from_user.language_code
+        user_id = c.from_user.id
+        
+        user_role = utils.get_user_role(self.authorized_users, user_id)
+        admin_only_sections = ["main", "bl", "au", "proxy"]
+        
+        if section_key in admin_only_sections and user_role != "admin":
+            self.bot.answer_callback_query(c.id, _("admin_only_command"), show_alert=True)
+            return
+
         sections_map = {
             "lang": (_("desc_lang"), kb.language_settings, [self.cortex]),
             "main": (_("desc_gs"), kb.main_settings, [self.cortex]),
@@ -940,7 +991,8 @@ class TGBot:
             "gr": (_("desc_gr", utils.escape(self.cortex.MAIN_CFG['Greetings']['greetingsText'])),
                    kb.greeting_settings, [self.cortex]),
             "oc": (_("desc_oc", utils.escape(self.cortex.MAIN_CFG['OrderConfirm']['replyText'])),
-                   kb.order_confirm_reply_settings, [self.cortex])
+                   kb.order_confirm_reply_settings, [self.cortex]),
+            "au": (_("desc_au"), lambda c, o: kb.authorized_users(c, o, user_id), [self.cortex, 0])
         }
         current_section_data = sections_map.get(section_key)
         if current_section_data:
@@ -1095,7 +1147,8 @@ class TGBot:
             if notification_type == NotificationTypes.critical:
                 is_admin_primary_chat = False
                 try:
-                    if int(chat_id_str) in self.authorized_users:
+                    user_id = int(chat_id_str)
+                    if user_id in self.authorized_users and self.authorized_users[user_id].get("role") == "admin":
                         is_admin_primary_chat = True
                 except ValueError:
                     pass
@@ -1250,3 +1303,4 @@ class TGBot:
     def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
+# END OF FILE FunPayCortex/tg_bot/bot.py

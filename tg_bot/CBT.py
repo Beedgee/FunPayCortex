@@ -1,3 +1,5 @@
+# START OF FILE FunPayCortex-main/tg_bot/CBT.py
+
 """
 CBT - CallBack Texts. В данном модуле расписаны все CallBack'и для Telegram клавиатуры (+ User-state'ы)
 """
@@ -699,3 +701,26 @@ BALANCE_REFRESH = "73"
 """
 Callback для обновления информации о балансе.
 """
+
+MANAGER_SETTINGS = "74"
+"""
+Callback для открытия настроек менеджеров (ключ регистрации).
+"""
+
+SET_MANAGER_KEY = "75"
+"""
+Callback для активации режима ввода ключа регистрации менеджеров.
+"""
+
+REVOKE_USER_ACCESS = "76"
+"""
+Callback для отзыва доступа у пользователя.
+Использование: CBT.REVOKE_USER_ACCESS:user_id:offset
+"""
+
+CHANGE_USER_ROLE = "77"
+"""
+Callback для изменения роли пользователя.
+Использование: CBT.CHANGE_USER_ROLE:user_id:offset:new_role
+"""
+# END OF FILE FunPayCortex/tg_bot/CBT.py
