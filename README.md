@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://i.imgur.com/mU4Jum5.png" width="140" alt="FunPay Cortex Logo"/>
+  <img src="assets/logo.png" width="500" alt="FunPay Cortex Logo"/>
 </p>
 
 <h1 align="center">
