@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/FunPayAPI/updater/runner.py
+# START OF FILE FunPayCortex-main/FunPayAPI/updater/runner.py
 
 from __future__ import annotations
 
@@ -273,11 +273,11 @@ class Runner:
                         self.account.interlocutor_ids[chat_id] = msgs[0].message.interlocutor_id
                         self.__interlocutor_ids.add(msgs[0].message.interlocutor_id)
 
-            # [LastChatMessageChanged, NewMSG, NewMSG ..., LastChatMessageChanged, NewMSG, NewMSG ...]
             for i in chats_pack:
-                events.append(i)
                 if new_msg_events.get(i.chat.id):
                     events.extend(new_msg_events[i.chat.id])
+                else:
+                    events.append(i)
         return events
 
     def generate_new_message_events(self, chats_data: dict[int, str],

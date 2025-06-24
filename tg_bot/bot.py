@@ -58,6 +58,7 @@ class TGBot:
         self.notification_settings = utils.load_notification_settings()
         self.answer_templates = utils.load_answer_templates()
         self.authorized_users = utils.load_authorized_users()
+        self._initialized = False
 
         self.commands = {
             "menu": "cmd_menu",
@@ -1263,9 +1264,12 @@ class TGBot:
 
 
     def init(self):
+        if self._initialized:
+            return
         self.__register_handlers()
         self.setup_commands()
         self.edit_bot()
+        self._initialized = True
         logger.info(_("log_tg_initialized"))
 
     def run(self):

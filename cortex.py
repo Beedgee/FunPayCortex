@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/cortex.py
+# START OF FILE FunPayCortex-main/cortex.py
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
@@ -79,6 +79,8 @@ class Cortex(object):
                  auto_response_config: ConfigParser,
                  raw_auto_response_config: ConfigParser,
                  version: str):
+        if hasattr(self, "instance_id"):
+            return
         self.VERSION = version
         self.instance_id = random.randint(0, 999999999)
         self.delivery_tests = {}

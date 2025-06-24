@@ -63,7 +63,7 @@ def load_authorized_users() -> dict[int, dict[str, str | None]]:
         if isinstance(data, list):  # Migration from old list format
             for user_id_val in data:
                 if isinstance(user_id_val, int):
-                    result[user_id_val] = {"username": None, "role": None}
+                    result[user_id_val] = {"username": None, "role": "admin"}
             save_authorized_users(result)  # Save in new format
             return result
         elif isinstance(data, dict):
@@ -76,7 +76,7 @@ def load_authorized_users() -> dict[int, dict[str, str | None]]:
                             "role": v.get("role")
                         }
                     else:  # Migration from another old dict format
-                        result[user_id] = {"username": str(v) if v else None, "role": None}
+                        result[user_id] = {"username": str(v) if v else None, "role": "admin"}
                 except (ValueError, TypeError):
                     continue
             return result
@@ -162,9 +162,9 @@ def escape(text: str) -> str:
     if not isinstance(text, str):
         text = str(text)
     escape_characters = {
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
+        "&": "&",
+        "<": "<",
+        ">": ">",
     }
     for char, escaped_char in escape_characters.items():
         text = text.replace(char, escaped_char)
