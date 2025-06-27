@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/handlers.py
+# START OF FILE FunPayCortex-main/handlers.py
 
 """
 В данном модуле написаны хэндлеры для разных эвентов.
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 from FunPayAPI.types import OrderShortcut, Order, Currency
 from FunPayAPI import exceptions, utils as fp_utils
 from FunPayAPI.updater.events import *
+from FunPayAPI.common.enums import SubCategoryTypes
 
 from tg_bot import utils, keyboards
 from Utils import cortex_tools
@@ -562,13 +563,39 @@ def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args):
             delivery_info = _("ntfc_new_order_user_blocked")
         else:
             delivery_info = _("ntfc_new_order_will_be_delivered")
-    text = _("ntfc_new_order", f"{utils.escape(e.order.description)}, {utils.escape(e.order.subcategory_name)}",
-             e.order.buyer_username, f"{e.order.price} {e.order.currency}", e.order.id, delivery_info)
 
-    chat_id = c.account.get_chat_by_name(e.order.buyer_username, True).id
-    keyboard = keyboards.new_order(e.order.id, e.order.buyer_username, chat_id)
-    Thread(target=c.telegram.send_notification, args=(text, keyboard, utils.NotificationTypes.new_order),
-           daemon=True).start()
+    seller_price_str = f"{e.order.price:.2f}"
+    buyer_price = None
+
+    if e.order.subcategory:
+        try:
+            calc_result = c.account.calc(e.order.subcategory.type, e.order.subcategory.id, e.order.price)
+            buyer_prices_in_order_currency = [m.price for m in calc_result.methods if m.currency == e.order.currency]
+            if buyer_prices_in_order_currency:
+                buyer_price = min(buyer_prices_in_order_currency)
+        except Exception as ex:
+            logger.warning(f"Не удалось рассчитать комиссию для заказа #{e.order.id}: {ex}")
+            logger.debug("TRACEBACK", exc_info=True)
+
+    if buyer_price is None:
+        buyer_price = e.order.price
+
+    buyer_price_text = f"{buyer_price:.2f}"
+
+    price_details = _("ntfc_new_order_price_details", seller_price=seller_price_str,
+                      buyer_price=buyer_price_text, currency=str(e.order.currency))
+
+    text = _("ntfc_new_order_no_link", f"{utils.escape(e.order.description)}, {utils.escape(e.order.subcategory_name)}",
+             e.order.buyer_username, price_details, e.order.id, delivery_info)
+
+    chat = c.account.get_chat_by_name(e.order.buyer_username, True)
+    if chat:
+        chat_id = chat.id
+        keyboard = keyboards.new_order(e.order.id, e.order.buyer_username, chat_id)
+        Thread(target=c.telegram.send_notification, args=(text, keyboard, utils.NotificationTypes.new_order),
+               daemon=True).start()
+    else:
+        logger.warning(f"Не удалось найти чат для пользователя {e.order.buyer_username} для отправки уведомления о заказе #{e.order.id}")
 
 
 def deliver_goods(c: Cortex, e: NewOrderEvent, *args):
@@ -848,5 +875,3 @@ BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirm
 BIND_TO_POST_DELIVERY = [send_delivery_notification_handler]
 
 BIND_TO_POST_START = [send_bot_started_notification_handler]
-
-# END OF FILE FunPayCortex/handlers.py

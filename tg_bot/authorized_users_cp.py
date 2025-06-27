@@ -65,20 +65,37 @@ def init_authorized_users_cp(cortex_instance: Cortex, *args):
             bot.edit_message_text(text_to_send, c.message.chat.id, c.message.id,
                                   reply_markup=kb.authorized_user_settings(cortex_instance, user_id, offset, False, c.from_user.id))
 
-    def revoke_user_access(c: CallbackQuery):
+    def revoke_user_access(c: CallbackQuery, confirm: bool = False):
         """Отозвать доступ у пользователя."""
-        __, user_id_str, offset_str = c.data.split(":")
+        __, user_id_str, offset_str = c.data.split(":")[:3]
         user_id_to_revoke = int(user_id_str)
         offset = int(offset_str)
+
+        if not confirm:
+            kb = InlineKeyboardMarkup().row(
+                InlineKeyboardButton(f"✅ {_('gl_yes')}", callback_data=f"{CBT.REVOKE_USER_ACCESS}:{user_id_to_revoke}:{offset}:1"),
+                InlineKeyboardButton(f"❌ {_('gl_no')}", callback_data=f"{CBT.AUTHORIZED_USER_SETTINGS}:{user_id_to_revoke}:{offset}")
+            )
+            bot.answer_callback_query(c.id, _("exit_from_cp_warning"), show_alert=True)
+            bot.edit_message_reply_markup(c.message.chat.id, c.message.id, reply_markup=kb)
+            return
 
         if user_id_to_revoke in tg.authorized_users:
             revoked_user_info = tg.authorized_users.pop(user_id_to_revoke)
             utils.save_authorized_users(tg.authorized_users)
             logger.warning(_("log_user_revoked", c.from_user.username, c.from_user.id, revoked_user_info.get("username", user_id_to_revoke), user_id_to_revoke))
-            bot.answer_callback_query(c.id, _("user_access_revoked", revoked_user_info.get("username", user_id_to_revoke)), show_alert=True)
-        
-        c.data = f"{CBT.AUTHORIZED_USERS}:{offset}"
-        open_authorized_users_list(c)
+            
+            if c.from_user.id == user_id_to_revoke:
+                bot.edit_message_text(_("exit_from_cp_success"), c.message.chat.id, c.message.id)
+                bot.answer_callback_query(c.id, _("exit_from_cp_success_alert"), show_alert=True)
+            else:
+                bot.answer_callback_query(c.id, _("user_access_revoked", revoked_user_info.get("username", user_id_to_revoke)), show_alert=True)
+                c.data = f"{CBT.AUTHORIZED_USERS}:{offset}"
+                open_authorized_users_list(c)
+        else:
+            bot.answer_callback_query(c.id, _("user_not_found"), show_alert=True)
+            c.data = f"{CBT.AUTHORIZED_USERS}:{offset}"
+            open_authorized_users_list(c)
 
     def change_user_role(c: CallbackQuery):
         """Изменить роль пользователя."""
@@ -130,15 +147,46 @@ def init_authorized_users_cp(cortex_instance: Cortex, *args):
         kb = InlineKeyboardMarkup().add(InlineKeyboardButton(_("gl_back"), callback_data=CBT.MANAGER_SETTINGS))
         bot.reply_to(m, _("manager_key_changed_success"), reply_markup=kb)
 
+    def exit_cp(c: CallbackQuery):
+        """Запросить подтверждение на выход из ПУ."""
+        __, user_id_str, offset_str = c.data.split(":")
+        user_id_to_exit = int(user_id_str)
+        offset = int(offset_str)
+
+        if c.from_user.id != user_id_to_exit:
+            bot.answer_callback_query(c.id, _("admin_only_command"), show_alert=True)
+            return
+
+        kb = InlineKeyboardMarkup().row(
+            InlineKeyboardButton(f"✅ {_('gl_yes')}", callback_data=f"{CBT.CONFIRM_EXIT_FROM_CP}:{user_id_to_exit}:{offset}"),
+            InlineKeyboardButton(f"❌ {_('gl_no')}", callback_data=f"{CBT.AUTHORIZED_USERS}:{offset}")
+        )
+        bot.answer_callback_query(c.id, _("exit_from_cp_warning"), show_alert=True)
+        bot.edit_message_reply_markup(c.message.chat.id, c.message.id, reply_markup=kb)
+    
+    def confirm_exit_cp(c: CallbackQuery):
+        """Подтверждение выхода из ПУ (отзыв доступа)."""
+        __, user_id_str, offset_str = c.data.split(":")
+        user_id_to_revoke = int(user_id_str)
+        
+        if c.from_user.id != user_id_to_revoke:
+            bot.answer_callback_query(c.id, _("admin_only_command"), show_alert=True)
+            return
+            
+        c.data = f"{CBT.REVOKE_USER_ACCESS}:{user_id_to_revoke}:{offset_str}:1"
+        revoke_user_access(c, confirm=True)
+
+
     tg.cbq_handler(open_authorized_users_list, lambda c: c.data.startswith(f"{CBT.AUTHORIZED_USERS}:"))
     tg.cbq_handler(open_authorized_user_settings, lambda c: c.data.startswith(f"{CBT.AUTHORIZED_USER_SETTINGS}:"))
-    tg.cbq_handler(revoke_user_access, lambda c: c.data.startswith(f"{CBT.REVOKE_USER_ACCESS}:"))
+    tg.cbq_handler(lambda c: revoke_user_access(c, confirm=False), lambda c: c.data.startswith(f"{CBT.REVOKE_USER_ACCESS}:") and len(c.data.split(":")) == 3)
+    tg.cbq_handler(lambda c: revoke_user_access(c, confirm=True), lambda c: c.data.startswith(f"{CBT.REVOKE_USER_ACCESS}:") and len(c.data.split(":")) == 4)
     tg.cbq_handler(change_user_role, lambda c: c.data.startswith(f"{CBT.CHANGE_USER_ROLE}:"))
     tg.cbq_handler(open_manager_settings, lambda c: c.data == CBT.MANAGER_SETTINGS)
     tg.cbq_handler(act_set_manager_key, lambda c: c.data == CBT.SET_MANAGER_KEY)
     tg.msg_handler(set_manager_key, func=lambda m: tg.check_state(m.chat.id, m.from_user.id, CBT.SET_MANAGER_KEY))
+    tg.cbq_handler(exit_cp, lambda c: c.data.startswith(f"{CBT.EXIT_FROM_CP}:"))
+    tg.cbq_handler(confirm_exit_cp, lambda c: c.data.startswith(f"{CBT.CONFIRM_EXIT_FROM_CP}:"))
 
 
 BIND_TO_PRE_INIT = [init_authorized_users_cp]
-
-# END OF FILE FunPayCortex/tg_bot/authorized_users_cp.py

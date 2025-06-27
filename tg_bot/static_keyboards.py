@@ -35,11 +35,14 @@ def SETTINGS_SECTIONS(cortex_instance: "Cortex", user_id: int) -> K:
 
     if user_role == "admin":
         kb.add(B(_("mm_global"), callback_data=f"{CBT.CATEGORY}:main")) \
-          .add(B(_("mm_plugins"), callback_data=f"{CBT.PLUGINS_LIST}:0")) \
-          .add(B(_("mm_balance"), callback_data=CBT.BALANCE_REFRESH))
+          .add(B(_("mm_plugins"), callback_data=f"{CBT.PLUGINS_LIST}:0"))
+    
+    if user_role in ["admin", "manager"] and cortex_instance.MAIN_CFG["ManagerPermissions"].getboolean("can_view_balance", fallback=False if user_role == 'manager' else True):
+        kb.add(B(_("mm_balance"), callback_data=CBT.BALANCE_REFRESH))
 
     kb.add(B(_("mm_notifications"), callback_data=f"{CBT.CATEGORY}:tg")) \
-      .add(B(_("gl_next"), callback_data=CBT.MAIN2))
+      .add(B(_("gl_next"), callback_data=CBT.MAIN2)) \
+      .add(B("❌ " + _("gl_close"), callback_data=CBT.CLOSE_MENU))
     return kb
 
 
@@ -49,11 +52,12 @@ def SETTINGS_SECTIONS_2(cortex_instance: "Cortex", user_id: int) -> K:
         .add(B(_("mm_greetings"), callback_data=f"{CBT.CATEGORY}:gr")) \
         .add(B(_("mm_order_confirm"), callback_data=f"{CBT.CATEGORY}:oc")) \
         .add(B(_("mm_review_reply"), callback_data=f"{CBT.CATEGORY}:rr")) \
-        .add(B(_("mm_new_msg_view"), callback_data=f"{CBT.CATEGORY}:mv")) \
-        .add(B(_("mm_blacklist"), callback_data=f"{CBT.CATEGORY}:bl"))
+        .add(B(_("mm_new_msg_view"), callback_data=f"{CBT.CATEGORY}:mv"))
 
     if user_role == "admin":
-        kb.add(B(_("mm_configs"), callback_data=CBT.CONFIG_LOADER)) \
+        kb.add(B(_("mm_manager_permissions"), callback_data=f"{CBT.CATEGORY}:mp")) \
+          .add(B(_("mm_blacklist"), callback_data=f"{CBT.CATEGORY}:bl")) \
+          .add(B(_("mm_configs"), callback_data=CBT.CONFIG_LOADER)) \
           .add(B(_("mm_authorized_users"), callback_data=f"{CBT.AUTHORIZED_USERS}:0")) \
           .add(B(_("mm_proxy"), callback_data=f"{CBT.PROXY}:0"))
 
@@ -80,11 +84,10 @@ def AD_SETTINGS() -> K:
 
 def CONFIGS_UPLOADER() -> K:
     return K() \
-        .add(B(_("cfg_download_main"), callback_data=f"{CBT.DOWNLOAD_CFG}:main")) \
-        .add(B(_("cfg_download_ar"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoResponse")) \
-        .add(B(_("cfg_download_ad"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoDelivery")) \
-        .add(B(_("cfg_upload_main"), callback_data="upload_main_config")) \
-        .add(B(_("cfg_upload_ar"), callback_data="upload_auto_response_config")) \
-        .add(B(_("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
+        .add(B("📥 " + _("cfg_download_main"), callback_data=f"{CBT.DOWNLOAD_CFG}:main")) \
+        .add(B("📥 " + _("cfg_download_ar"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoResponse")) \
+        .add(B("📥 " + _("cfg_download_ad"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoDelivery")) \
+        .add(B("📤 " + _("cfg_upload_main"), callback_data="upload_main_config")) \
+        .add(B("📤 " + _("cfg_upload_ar"), callback_data="upload_auto_response_config")) \
+        .add(B("📤 " + _("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
-# END OF FILE FunPayCortex/tg_bot/static_keyboards.py

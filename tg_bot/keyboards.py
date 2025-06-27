@@ -38,31 +38,31 @@ def power_off(instance_id: int, state: int) -> K:
     """
     kb = K()
     if state == 0:
-        kb.row(B(_("gl_yes"), None, f"{CBT.SHUT_DOWN}:1:{instance_id}"),
-               B(_("gl_no"), None, CBT.CANCEL_SHUTTING_DOWN))
+        kb.row(B(_("gl_yes"), callback_data=f"{CBT.SHUT_DOWN}:1:{instance_id}"),
+               B(_("gl_no"), callback_data=CBT.CANCEL_SHUTTING_DOWN))
     elif state == 1:
-        kb.row(B(_("gl_no"), None, CBT.CANCEL_SHUTTING_DOWN),
-               B(_("gl_yes"), None, f"{CBT.SHUT_DOWN}:2:{instance_id}"))
+        kb.row(B(_("gl_no"), callback_data=CBT.CANCEL_SHUTTING_DOWN),
+               B(_("gl_yes"), callback_data=f"{CBT.SHUT_DOWN}:2:{instance_id}"))
     elif state == 2:
         yes_button_num = random.randint(1, 10)
-        yes_button = B(_("gl_yes"), None, f"{CBT.SHUT_DOWN}:3:{instance_id}")
-        no_button = B(_("gl_no"), None, CBT.CANCEL_SHUTTING_DOWN)
+        yes_button = B(_("gl_yes"), callback_data=f"{CBT.SHUT_DOWN}:3:{instance_id}")
+        no_button = B(_("gl_no"), callback_data=CBT.CANCEL_SHUTTING_DOWN)
         buttons = [*[no_button] * (yes_button_num - 1), yes_button, *[no_button] * (10 - yes_button_num)]
         kb.add(*buttons, row_width=2)
     elif state == 3:
         yes_button_num = random.randint(1, 30)
-        yes_button = B(_("gl_yes"), None, f"{CBT.SHUT_DOWN}:4:{instance_id}")
-        no_button = B(_("gl_no"), None, CBT.CANCEL_SHUTTING_DOWN)
+        yes_button = B(_("gl_yes"), callback_data=f"{CBT.SHUT_DOWN}:4:{instance_id}")
+        no_button = B(_("gl_no"), callback_data=CBT.CANCEL_SHUTTING_DOWN)
         buttons = [*[no_button] * (yes_button_num - 1), yes_button, *[no_button] * (30 - yes_button_num)]
         kb.add(*buttons, row_width=5)
     elif state == 4:
         yes_button_num = random.randint(1, 40)
-        yes_button = B(_("gl_no"), None, f"{CBT.SHUT_DOWN}:5:{instance_id}")
-        no_button = B(_("gl_yes"), None, CBT.CANCEL_SHUTTING_DOWN)
+        yes_button = B(_("gl_no"), callback_data=f"{CBT.SHUT_DOWN}:5:{instance_id}")
+        no_button = B(_("gl_yes"), callback_data=CBT.CANCEL_SHUTTING_DOWN)
         buttons = [*[yes_button] * (yes_button_num - 1), no_button, *[yes_button] * (40 - yes_button_num)]
         kb.add(*buttons, row_width=7)
     elif state == 5:
-        kb.add(B(_("gl_yep"), None, f"{CBT.SHUT_DOWN}:6:{instance_id}"))
+        kb.add(B(_("gl_yep"), callback_data=f"{CBT.SHUT_DOWN}:6:{instance_id}"))
     return kb
 
 
@@ -88,7 +88,7 @@ def language_settings(c: Cortex) -> K:
         text = f"✅ {langs[i]}" if lang == i else langs[i]
         lang_buttons.append(B(text, callback_data=cb))
     kb.row(*lang_buttons)
-    kb.add(B(_("gl_back"), None, CBT.MAIN))
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
     return kb
 
 
@@ -105,16 +105,16 @@ def main_settings(c: Cortex) -> K:
         return '🟢' if c.MAIN_CFG["FunPay"].getboolean(s) else '🔴'
 
     kb = K() \
-        .row(B(_("gs_autoraise", l('autoRaise')), None, f"{p}:autoRaise"),
-             B(_("gs_autoresponse", l('autoResponse')), None, f"{p}:autoResponse")) \
-        .row(B(_("gs_autodelivery", l('autoDelivery')), None, f"{p}:autoDelivery"),
-             B(_("gs_nultidelivery", l('multiDelivery')), None, f"{p}:multiDelivery")) \
-        .row(B(_("gs_autorestore", l('autoRestore')), None, f"{p}:autoRestore"),
-             B(_("gs_autodisable", l('autoDisable')), None, f"{p}:autoDisable")) \
-        .row(B(_("gs_old_msg_mode", l('oldMsgGetMode')), None, f"{p}:oldMsgGetMode"),
-             B(f"❓ Инфо", None, f"{CBT.OLD_MOD_HELP}")) \
-        .add(B(_("gs_keep_sent_messages_unread", l('keepSentMessagesUnread')), None, f"{p}:keepSentMessagesUnread")) \
-        .add(B(_("gl_back"), None, CBT.MAIN))
+        .row(B(_("gs_autoraise", l('autoRaise')), callback_data=f"{p}:autoRaise"),
+             B(_("gs_autoresponse", l('autoResponse')), callback_data=f"{p}:autoResponse")) \
+        .row(B(_("gs_autodelivery", l('autoDelivery')), callback_data=f"{p}:autoDelivery"),
+             B(_("gs_nultidelivery", l('multiDelivery')), callback_data=f"{p}:multiDelivery")) \
+        .row(B(_("gs_autorestore", l('autoRestore')), callback_data=f"{p}:autoRestore"),
+             B(_("gs_autodisable", l('autoDisable')), callback_data=f"{p}:autoDisable")) \
+        .row(B(_("gs_old_msg_mode", l('oldMsgGetMode')), callback_data=f"{p}:oldMsgGetMode"),
+             B(f"❓", callback_data=f"{CBT.SEND_HELP}:old_mode_help")) \
+        .add(B(_("gs_keep_sent_messages_unread", l('keepSentMessagesUnread')), callback_data=f"{p}:keepSentMessagesUnread")) \
+        .add(B(_("gl_back"), callback_data=CBT.MAIN))
     return kb
 
 
@@ -130,14 +130,14 @@ def new_message_view_settings(c: Cortex) -> K:
         return '🟢' if c.MAIN_CFG["NewMessageView"].getboolean(s) else '🔴'
 
     kb = K() \
-        .add(B(_("mv_incl_my_msg", l("includeMyMessages")), None, f"{p}:includeMyMessages")) \
-        .add(B(_("mv_incl_fp_msg", l("includeFPMessages")), None, f"{p}:includeFPMessages")) \
-        .add(B(_("mv_incl_bot_msg", l("includeBotMessages")), None, f"{p}:includeBotMessages")) \
-        .add(B(_("mv_only_my_msg", l("notifyOnlyMyMessages")), None, f"{p}:notifyOnlyMyMessages")) \
-        .add(B(_("mv_only_fp_msg", l("notifyOnlyFPMessages")), None, f"{p}:notifyOnlyFPMessages")) \
-        .add(B(_("mv_only_bot_msg", l("notifyOnlyBotMessages")), None, f"{p}:notifyOnlyBotMessages")) \
-        .add(B(_("mv_show_image_name", l("showImageName")), None, f"{p}:showImageName")) \
-        .add(B(_("gl_back"), None, CBT.MAIN2))
+        .add(B(_("mv_incl_my_msg", l("includeMyMessages")), callback_data=f"{p}:includeMyMessages")) \
+        .add(B(_("mv_incl_fp_msg", l("includeFPMessages")), callback_data=f"{p}:includeFPMessages")) \
+        .add(B(_("mv_incl_bot_msg", l("includeBotMessages")), callback_data=f"{p}:includeBotMessages")) \
+        .add(B(_("mv_only_my_msg", l("notifyOnlyMyMessages")), callback_data=f"{p}:notifyOnlyMyMessages")) \
+        .add(B(_("mv_only_fp_msg", l("notifyOnlyFPMessages")), callback_data=f"{p}:notifyOnlyFPMessages")) \
+        .add(B(_("mv_only_bot_msg", l("notifyOnlyBotMessages")), callback_data=f"{p}:notifyOnlyBotMessages")) \
+        .add(B(_("mv_show_image_name", l("showImageName")), callback_data=f"{p}:showImageName")) \
+        .row(B("❓", callback_data=f"{CBT.SEND_HELP}:help_new_message_view"), B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -155,11 +155,11 @@ def greeting_settings(c: Cortex):
     cd = float(c.MAIN_CFG["Greetings"]["greetingsCooldown"])
     cd = int(cd) if int(cd) == cd else cd
     kb = K() \
-        .add(B(_("gr_greetings", l("sendGreetings")), None, f"{p}:sendGreetings")) \
-        .add(B(_("gr_ignore_sys_msgs", l("ignoreSystemMessages")), None, f"{p}:ignoreSystemMessages")) \
-        .add(B(_("gr_edit_message"), None, CBT.EDIT_GREETINGS_TEXT)) \
-        .add(B(_("gr_edit_cooldown").format(cd), None, CBT.EDIT_GREETINGS_COOLDOWN)) \
-        .add(B(_("gl_back"), None, CBT.MAIN2))
+        .add(B(_("gr_greetings", l("sendGreetings")), callback_data=f"{p}:sendGreetings")) \
+        .add(B(_("gr_ignore_sys_msgs", l("ignoreSystemMessages")), callback_data=f"{p}:ignoreSystemMessages")) \
+        .add(B(_("gr_edit_message"), callback_data=CBT.EDIT_GREETINGS_TEXT)) \
+        .add(B(_("gr_edit_cooldown").format(cd), callback_data=CBT.EDIT_GREETINGS_COOLDOWN)) \
+        .add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -171,11 +171,11 @@ def order_confirm_reply_settings(c: Cortex):
     """
     kb = K() \
         .add(B(_("oc_send_reply", bool_to_text(int(c.MAIN_CFG['OrderConfirm']['sendReply']))),
-               None, f"{CBT.SWITCH}:OrderConfirm:sendReply")) \
+               callback_data=f"{CBT.SWITCH}:OrderConfirm:sendReply")) \
         .add(B(_("oc_watermark", bool_to_text(int(c.MAIN_CFG['OrderConfirm']['watermark']))),
-               None, f"{CBT.SWITCH}:OrderConfirm:watermark")) \
-        .add(B(_("oc_edit_message"), None, CBT.EDIT_ORDER_CONFIRM_REPLY_TEXT)) \
-        .add(B(_("gl_back"), None, CBT.MAIN2))
+               callback_data=f"{CBT.SWITCH}:OrderConfirm:watermark")) \
+        .add(B(_("oc_edit_message"), callback_data=CBT.EDIT_ORDER_CONFIRM_REPLY_TEXT)) \
+        .add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -195,7 +195,7 @@ def authorized_users(c: Cortex, offset: int, current_user_id: int):
         return '🟢' if c.MAIN_CFG["Telegram"].getboolean(s) else '🔴'
 
     if user_role == "admin":
-        kb.add(B(_("tg_block_login", l("blockLogin")), None, f"{p}:blockLogin:{offset}"))
+        kb.add(B(_("tg_block_login", l("blockLogin")), callback_data=f"{p}:blockLogin:{offset}"))
 
     users_dict = c.telegram.authorized_users
     sorted_users = sorted(users_dict.items(), key=lambda item: (item[1].get('role', 'z'), item[1].get('username', str(item[0])).lower()))
@@ -215,7 +215,8 @@ def authorized_users(c: Cortex, offset: int, current_user_id: int):
     if user_role == "admin":
         kb.row(B(_("mm_manager_settings"), callback_data=CBT.MANAGER_SETTINGS))
 
-    kb.add(B(_("gl_back"), None, CBT.MAIN2))
+    kb.add(B(_("au_exit_cp"), callback_data=f"{CBT.EXIT_FROM_CP}:{current_user_id}:{offset}"))
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -244,7 +245,7 @@ def authorized_user_settings(c: Cortex, user_id: int, offset: int, user_link: bo
         
         kb.add(B(_("revoke_access"), callback_data=f"{CBT.REVOKE_USER_ACCESS}:{user_id}:{offset}"))
 
-    kb.add(B(_("gl_back"), None, f"{CBT.AUTHORIZED_USERS}:{offset}"))
+    kb.add(B(_("gl_back"), callback_data=f"{CBT.AUTHORIZED_USERS}:{offset}"))
     return kb
 
 
@@ -286,8 +287,8 @@ def proxy(c: Cortex, offset: int, proxies: dict[str, bool]):
 
     kb = add_navigation_buttons(kb, offset, MENU_CFG.PROXY_BTNS_AMOUNT, len(ps),
                                 len(c.proxy_dict.items()), CBT.PROXY)
-    kb.row(B(_("prx_proxy_add"), None, f"{CBT.ADD_PROXY}:{offset}"))
-    kb.add(B(_("gl_back"), None, CBT.MAIN2))
+    kb.row(B(_("prx_proxy_add"), callback_data=f"{CBT.ADD_PROXY}:{offset}"))
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -305,8 +306,8 @@ def review_reply_settings(c: Cortex):
         reply_set_icon = "✏️" if c.MAIN_CFG['ReviewReply'][f'star{i}ReplyText'] else "➕"
 
         kb.row(
-            B(f"{stars_text} Ответ: {reply_enabled_text}", None, f"{CBT.SWITCH}:ReviewReply:star{i}Reply"),
-            B(f"{reply_set_icon} Текст", None, f"{CBT.EDIT_REVIEW_REPLY_TEXT}:{i}")
+            B(f"{stars_text} Ответ: {reply_enabled_text}", callback_data=f"{CBT.SWITCH}:ReviewReply:star{i}Reply"),
+            B(f"{reply_set_icon} Текст", callback_data=f"{CBT.EDIT_REVIEW_REPLY_TEXT}:{i}")
         )
         current_reply = c.MAIN_CFG['ReviewReply'][f'star{i}ReplyText']
         if current_reply:
@@ -314,7 +315,7 @@ def review_reply_settings(c: Cortex):
         else:
             kb.add(B("↳ (Ответ не задан)", callback_data=f"{CBT.EDIT_REVIEW_REPLY_TEXT}:{i}"))
 
-    kb.add(B(_("gl_back"), None, CBT.MAIN2))
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -332,18 +333,18 @@ def notifications_settings(c: Cortex, chat_id: int) -> K:
         return '🔔' if c.telegram.is_notification_enabled(chat_id, nt) else '🔕'
 
     kb = K() \
-        .row(B(_("ns_new_msg", l(n.new_message)), None, f"{p}:{n.new_message}"),
-             B(_("ns_cmd", l(n.command)), None, f"{p}:{n.command}")) \
-        .row(B(_("ns_new_order", l(n.new_order)), None, f"{p}:{n.new_order}"),
-             B(_("ns_order_confirmed", l(n.order_confirmed)), None, f"{p}:{n.order_confirmed}")) \
-        .row(B(_("ns_lot_activate", l(n.lots_restore)), None, f"{p}:{n.lots_restore}"),
-             B(_("ns_lot_deactivate", l(n.lots_deactivate)), None, f"{p}:{n.lots_deactivate}")) \
-        .row(B(_("ns_delivery", l(n.delivery)), None, f"{p}:{n.delivery}"),
-             B(_("ns_raise", l(n.lots_raise)), None, f"{p}:{n.lots_raise}")) \
-        .add(B(_("ns_new_review", l(n.review)), None, f"{p}:{n.review}")) \
-        .add(B(_("ns_bot_start", l(n.bot_start)), None, f"{p}:{n.bot_start}")) \
-        .add(B(_("ns_other", l(n.other)), None, f"{p}:{n.other}")) \
-        .add(B(_("gl_back"), None, CBT.MAIN))
+        .row(B(_("ns_new_msg", l(n.new_message)), callback_data=f"{p}:{n.new_message}"),
+             B(_("ns_cmd", l(n.command)), callback_data=f"{p}:{n.command}")) \
+        .row(B(_("ns_new_order", l(n.new_order)), callback_data=f"{p}:{n.new_order}"),
+             B(_("ns_order_confirmed", l(n.order_confirmed)), callback_data=f"{p}:{n.order_confirmed}")) \
+        .row(B(_("ns_lot_activate", l(n.lots_restore)), callback_data=f"{p}:{n.lots_restore}"),
+             B(_("ns_lot_deactivate", l(n.lots_deactivate)), callback_data=f"{p}:{n.lots_deactivate}")) \
+        .row(B(_("ns_delivery", l(n.delivery)), callback_data=f"{p}:{n.delivery}"),
+             B(_("ns_raise", l(n.lots_raise)), callback_data=f"{p}:{n.lots_raise}")) \
+        .add(B(_("ns_new_review", l(n.review)), callback_data=f"{p}:{n.review}")) \
+        .add(B(_("ns_bot_start", l(n.bot_start)), callback_data=f"{p}:{n.bot_start}")) \
+        .add(B(_("ns_other", l(n.other)), callback_data=f"{p}:{n.other}")) \
+        .add(B(_("gl_back"), callback_data=CBT.MAIN))
     return kb
 
 
@@ -361,8 +362,8 @@ def announcements_settings(c: Cortex, chat_id: int):
         return '🔔' if c.telegram.is_notification_enabled(chat_id, nt) else '🔕'
 
     kb = K() \
-        .add(B(_("an_an", l(n.announcement)), None, f"{p}:{n.announcement}")) \
-        .add(B(_("an_ad", l(n.ad)), None, f"{p}:{n.ad}"))
+        .add(B(_("an_an", l(n.announcement)), callback_data=f"{p}:{n.announcement}")) \
+        .add(B(_("an_ad", l(n.ad)), callback_data=f"{p}:{n.ad}"))
     return kb
 
 
@@ -378,12 +379,31 @@ def blacklist_settings(c: Cortex) -> K:
         return '🟢' if c.MAIN_CFG["BlockList"].getboolean(s) else '🔴'
 
     kb = K() \
-        .add(B(_("bl_autodelivery", l("blockDelivery")), None, f"{p}:blockDelivery")) \
-        .add(B(_("bl_autoresponse", l("blockResponse")), None, f"{p}:blockResponse")) \
-        .add(B(_("bl_new_msg_notifications", l("blockNewMessageNotification")), None, f"{p}:blockNewMessageNotification")) \
-        .add(B(_("bl_new_order_notifications", l("blockNewOrderNotification")), None, f"{p}:blockNewOrderNotification")) \
-        .add(B(_("bl_command_notifications", l("blockCommandNotification")), None, f"{p}:blockCommandNotification")) \
-        .add(B(_("gl_back"), None, CBT.MAIN2))
+        .add(B(_("bl_autodelivery", l("blockDelivery")), callback_data=f"{p}:blockDelivery")) \
+        .add(B(_("bl_autoresponse", l("blockResponse")), callback_data=f"{p}:blockResponse")) \
+        .add(B(_("bl_new_msg_notifications", l("blockNewMessageNotification")), callback_data=f"{p}:blockNewMessageNotification")) \
+        .add(B(_("bl_new_order_notifications", l("blockNewOrderNotification")), callback_data=f"{p}:blockNewOrderNotification")) \
+        .add(B(_("bl_command_notifications", l("blockCommandNotification")), callback_data=f"{p}:blockCommandNotification")) \
+        .add(B(_("gl_back"), callback_data=CBT.MAIN2))
+    return kb
+
+def manager_permissions_settings(c: Cortex) -> K:
+    """
+    Генерирует клавиатуру настроек прав менеджеров (CBT.CATEGORY:mp).
+    :param c: объект Cortex.
+    :return: объект клавиатуры настроек прав менеджеров.
+    """
+    p = f"{CBT.SWITCH}:ManagerPermissions"
+    
+    def l(s, fallback=False):
+        return '🟢' if c.MAIN_CFG["ManagerPermissions"].getboolean(s, fallback=fallback) else '🔴'
+
+    kb = K() \
+        .add(B(_("mp_can_view_balance", l("can_view_balance")), callback_data=f"{p}:can_view_balance")) \
+        .add(B(_("mp_can_edit_ar", l("can_edit_ar")), callback_data=f"{p}:can_edit_ar")) \
+        .add(B(_("mp_can_edit_ad", l("can_edit_ad")), callback_data=f"{p}:can_edit_ad")) \
+        .add(B(_("mp_can_edit_templates", l("can_edit_templates")), callback_data=f"{p}:can_edit_templates")) \
+        .row(B("❓", callback_data=f"{CBT.SEND_HELP}:help_manager_permissions"), B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
 
@@ -407,13 +427,13 @@ def commands_list(c: Cortex, offset: int) -> K:
             cmd_display = cmd_raw_text.split("|")[0].strip()
             if "|" in cmd_raw_text:
                 cmd_display += " | ..."
-            kb.add(B(f"💬 {cmd_display}", None, f"{CBT.EDIT_CMD}:{offset + index}:{offset}"))
+            kb.add(B(f"💬 {cmd_display}", callback_data=f"{CBT.EDIT_CMD}:{offset + index}:{offset}"))
 
     kb = add_navigation_buttons(kb, offset, MENU_CFG.AR_BTNS_AMOUNT, len(commands), len(c.RAW_AR_CFG.sections()),
                                 CBT.CMD_LIST)
 
-    kb.add(B(_("ar_to_ar"), None, f"{CBT.CATEGORY}:ar"))
-    kb.add(B(_("ar_to_mm"), None, CBT.MAIN))
+    kb.add(B(_("ar_to_ar"), callback_data=f"{CBT.CATEGORY}:ar"))
+    kb.add(B(_("ar_to_mm"), callback_data=CBT.MAIN))
     return kb
 
 
@@ -430,13 +450,13 @@ def edit_command(c: Cortex, command_index: int, offset: int) -> K:
     notif_status = bool_to_text(command_obj.get('telegramNotification'), '🔔', '🔕')
 
     kb = K() \
-        .add(B(_("ar_edit_response"), None, f"{CBT.EDIT_CMD_RESPONSE_TEXT}:{command_index}:{offset}")) \
-        .add(B(_("ar_edit_notification"), None, f"{CBT.EDIT_CMD_NOTIFICATION_TEXT}:{command_index}:{offset}")) \
+        .add(B(_("ar_edit_response"), callback_data=f"{CBT.EDIT_CMD_RESPONSE_TEXT}:{command_index}:{offset}")) \
+        .add(B(_("ar_edit_notification"), callback_data=f"{CBT.EDIT_CMD_NOTIFICATION_TEXT}:{command_index}:{offset}")) \
         .add(B(_("ar_notification", notif_status),
-               None, f"{CBT.SWITCH_CMD_NOTIFICATION}:{command_index}:{offset}")) \
-        .add(B(_("gl_delete"), None, f"{CBT.DEL_CMD}:{command_index}:{offset}")) \
-        .row(B(_("gl_back"), None, f"{CBT.CMD_LIST}:{offset}"),
-             B(_("gl_refresh"), None, f"{CBT.EDIT_CMD}:{command_index}:{offset}"))
+               callback_data=f"{CBT.SWITCH_CMD_NOTIFICATION}:{command_index}:{offset}")) \
+        .add(B(_("gl_delete"), callback_data=f"{CBT.DEL_CMD}:{command_index}:{offset}")) \
+        .row(B(_("gl_back"), callback_data=f"{CBT.CMD_LIST}:{offset}"),
+             B(_("gl_refresh"), callback_data=f"{CBT.EDIT_CMD}:{command_index}:{offset}"))
     return kb
 
 
@@ -466,13 +486,13 @@ def products_files_list(offset: int) -> K:
                 amount = Utils.cortex_tools.count_products(os.path.join(products_dir, name))
             except Exception:
                 amount = "⚠️" 
-            keyboard.add(B(f"📄 {name} ({amount} {_('gl_pcs')})", None, f"{CBT.EDIT_PRODUCTS_FILE}:{all_files.index(name)}:{offset}"))
+            keyboard.add(B(f"📄 {name} ({amount} {_('gl_pcs')})", callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{all_files.index(name)}:{offset}"))
 
     keyboard = add_navigation_buttons(keyboard, offset, MENU_CFG.PF_BTNS_AMOUNT, len(files_on_page),
                                       len(all_files), CBT.PRODUCTS_FILES_LIST)
 
-    keyboard.add(B(_("ad_to_ad"), None, f"{CBT.CATEGORY}:ad"))
-    keyboard.add(B(_("ad_to_mm"), None, CBT.MAIN))
+    keyboard.add(B(_("ad_to_ad"), callback_data=f"{CBT.CATEGORY}:ad"))
+    keyboard.add(B(_("ad_to_mm"), callback_data=CBT.MAIN))
     return keyboard
 
 
@@ -486,15 +506,15 @@ def products_file_edit(file_number: int, offset: int, confirmation: bool = False
     :return: объект клавиатуры изменения товарного файла.
     """
     keyboard = K() \
-        .add(B(_("gf_add_goods"), None, f"{CBT.ADD_PRODUCTS_TO_FILE}:{file_number}:{file_number}:{offset}:0")) \
-        .add(B(_("gf_download"), None, f"download_products_file:{file_number}:{offset}"))
+        .add(B(_("gf_add_goods"), callback_data=f"{CBT.ADD_PRODUCTS_TO_FILE}:{file_number}:{file_number}:{offset}:0")) \
+        .add(B(_("gf_download"), callback_data=f"download_products_file:{file_number}:{offset}"))
     if not confirmation:
-        keyboard.add(B(_("gl_delete"), None, f"del_products_file:{file_number}:{offset}"))
+        keyboard.add(B(_("gl_delete"), callback_data=f"del_products_file:{file_number}:{offset}"))
     else:
-        keyboard.row(B(_("gl_yes") + " Удалить", None, f"confirm_del_products_file:{file_number}:{offset}"),
-                     B(_("gl_no") + " Не удалять", None, f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
-    keyboard.row(B(_("gl_back"), None, f"{CBT.PRODUCTS_FILES_LIST}:{offset}"),
-                 B(_("gl_refresh"), None, f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
+        keyboard.row(B(_("gl_yes") + " Удалить", callback_data=f"confirm_del_products_file:{file_number}:{offset}"),
+                     B(_("gl_no") + " Не удалять", callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
+    keyboard.row(B(_("gl_back"), callback_data=f"{CBT.PRODUCTS_FILES_LIST}:{offset}"),
+                 B(_("gl_refresh"), callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
     return keyboard
 
 
@@ -516,13 +536,13 @@ def lots_list(cortex_instance: Cortex, offset: int) -> K:
         keyboard.add(B("🧾 Пока нет лотов с автовыдачей", callback_data=CBT.EMPTY))
     else:
         for index, lot_name in enumerate(lots_on_page):
-            keyboard.add(B(f"📦 {lot_name}", None, f"{CBT.EDIT_AD_LOT}:{all_lots.index(lot_name)}:{offset}"))
+            keyboard.add(B(f"📦 {lot_name}", callback_data=f"{CBT.EDIT_AD_LOT}:{all_lots.index(lot_name)}:{offset}"))
 
     keyboard = add_navigation_buttons(keyboard, offset, MENU_CFG.AD_BTNS_AMOUNT, len(lots_on_page),
                                       len(all_lots), CBT.AD_LOTS_LIST)
 
-    keyboard.add(B(_("ad_to_ad"), None, f"{CBT.CATEGORY}:ad"))
-    keyboard.add(B(_("ad_to_mm"), None, CBT.MAIN))
+    keyboard.add(B(_("ad_to_ad"), callback_data=f"{CBT.CATEGORY}:ad"))
+    keyboard.add(B(_("ad_to_mm"), callback_data=CBT.MAIN))
     return keyboard
 
 
@@ -547,15 +567,15 @@ def funpay_lots_list(c: Cortex, offset: int):
             is_ad_configured = lot_obj.title in c.AD_CFG.sections()
             prefix = "✅ " if is_ad_configured else "➕ "
             keyboard.add(B(f"{prefix}{lot_obj.description[:40]}{'...' if len(lot_obj.description) > 40 else ''}",
-                           None, f"{CBT.ADD_AD_TO_LOT}:{all_fp_lots.index(lot_obj)}:{offset}"))
+                           callback_data=f"{CBT.ADD_AD_TO_LOT}:{all_fp_lots.index(lot_obj)}:{offset}"))
 
     keyboard = add_navigation_buttons(keyboard, offset, MENU_CFG.FP_LOTS_BTNS_AMOUNT, len(lots_on_page),
                                       len(all_fp_lots), CBT.FP_LOTS_LIST)
 
-    keyboard.row(B(_("fl_manual"), None, f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{offset}"),
-                 B(_("gl_refresh"), None, f"update_funpay_lots:{offset}"))
-    keyboard.add(B(_("ad_to_ad"), None, f"{CBT.CATEGORY}:ad"))
-    keyboard.add(B(_("ad_to_mm"), None, CBT.MAIN))
+    keyboard.row(B(_("fl_manual"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{offset}"),
+                 B(_("gl_refresh"), callback_data=f"update_funpay_lots:{offset}"))
+    keyboard.add(B(_("ad_to_ad"), callback_data=f"{CBT.CATEGORY}:ad"))
+    keyboard.add(B(_("ad_to_mm"), callback_data=CBT.MAIN))
     return keyboard
 
 
@@ -575,14 +595,14 @@ def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
     lot_obj = c.AD_CFG[lot_name]
     file_name = lot_obj.get("productsFileName")
     kb = K() \
-        .add(B(_("ea_edit_delivery_text"), None, f"{CBT.EDIT_LOT_DELIVERY_TEXT}:{lot_number}:{offset}"))
+        .add(B(_("ea_edit_delivery_text"), callback_data=f"{CBT.EDIT_LOT_DELIVERY_TEXT}:{lot_number}:{offset}"))
     
     products_dir = "storage/products"
     link_file_text = _("ea_link_goods_file")
     add_goods_text = _("gf_add_goods")
 
     if not file_name:
-        kb.add(B(link_file_text, None, f"{CBT.BIND_PRODUCTS_FILE}:{lot_number}:{offset}"))
+        kb.add(B(link_file_text, callback_data=f"{CBT.BIND_PRODUCTS_FILE}:{lot_number}:{offset}"))
     else:
         all_storage_files = sorted([f for f in os.listdir(products_dir) if f.endswith(".txt")]) if os.path.exists(products_dir) else []
         file_exists_in_storage = file_name in all_storage_files
@@ -595,10 +615,10 @@ def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
         file_index_in_storage = all_storage_files.index(file_name) if file_name in all_storage_files else -1
 
         if file_index_in_storage != -1:
-            kb.row(B(f"{link_file_text} («{file_name}»)", None, f"{CBT.BIND_PRODUCTS_FILE}:{lot_number}:{offset}"),
-                   B(add_goods_text, None, f"{CBT.ADD_PRODUCTS_TO_FILE}:{file_index_in_storage}:{lot_number}:{offset}:1"))
+            kb.row(B(f"{link_file_text} («{file_name}»)", callback_data=f"{CBT.BIND_PRODUCTS_FILE}:{lot_number}:{offset}"),
+                   B(add_goods_text, callback_data=f"{CBT.ADD_PRODUCTS_TO_FILE}:{file_index_in_storage}:{lot_number}:{offset}:1"))
         else:
-            kb.add(B(f"{link_file_text} (⚠️ {file_name} - не найден!)", None, f"{CBT.BIND_PRODUCTS_FILE}:{lot_number}:{offset}"))
+            kb.add(B(f"{link_file_text} (⚠️ {file_name} - не найден!)", callback_data=f"{CBT.BIND_PRODUCTS_FILE}:{lot_number}:{offset}"))
 
     p = {
         "ad": (c.MAIN_CFG["FunPay"].getboolean("autoDelivery"), "disable"),
@@ -613,14 +633,14 @@ def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
         if not global_enabled: return '⚪'
         return '🔴' if lot_obj.getboolean(local_option_name, False) else '🟢'
 
-    kb.row(B(_("ea_delivery", get_status_emoji("ad")), None, f"{f'{switch_lot_cb_prefix}:disable:{info_cb_part}' if p['ad'][0] else param_disabled_cb}"),
-           B(_("ea_multidelivery", get_status_emoji("md")), None, f"{f'{switch_lot_cb_prefix}:disableMultiDelivery:{info_cb_part}' if p['md'][0] else param_disabled_cb}")) \
-        .row(B(_("ea_restore", get_status_emoji("ares")), None, f"{f'{switch_lot_cb_prefix}:disableAutoRestore:{info_cb_part}' if p['ares'][0] else param_disabled_cb}"),
-             B(_("ea_deactivate", get_status_emoji("adis")), None, f"{f'{switch_lot_cb_prefix}:disableAutoDisable:{info_cb_part}' if p['adis'][0] else param_disabled_cb}")) \
-        .row(B(_("ea_test"), None, f"test_auto_delivery:{info_cb_part}"),
-             B(_("gl_delete"), None, f"{CBT.DEL_AD_LOT}:{info_cb_part}")) \
-        .row(B(_("gl_back"), None, f"{CBT.AD_LOTS_LIST}:{offset}"),
-             B(_("gl_refresh"), None, f"{CBT.EDIT_AD_LOT}:{info_cb_part}"))
+    kb.row(B(_("ea_delivery", get_status_emoji("ad")), callback_data=f"{f'{switch_lot_cb_prefix}:disable:{info_cb_part}' if p['ad'][0] else param_disabled_cb}"),
+           B(_("ea_multidelivery", get_status_emoji("md")), callback_data=f"{f'{switch_lot_cb_prefix}:disableMultiDelivery:{info_cb_part}' if p['md'][0] else param_disabled_cb}")) \
+        .row(B(_("ea_restore", get_status_emoji("ares")), callback_data=f"{f'{switch_lot_cb_prefix}:disableAutoRestore:{info_cb_part}' if p['ares'][0] else param_disabled_cb}"),
+             B(_("ea_deactivate", get_status_emoji("adis")), callback_data=f"{f'{switch_lot_cb_prefix}:disableAutoDisable:{info_cb_part}' if p['adis'][0] else param_disabled_cb}")) \
+        .row(B(_("ea_test"), callback_data=f"test_auto_delivery:{info_cb_part}"),
+             B(_("gl_delete"), callback_data=f"{CBT.DEL_AD_LOT}:{info_cb_part}")) \
+        .row(B(_("gl_back"), callback_data=f"{CBT.AD_LOTS_LIST}:{offset}"),
+             B(_("gl_refresh"), callback_data=f"{CBT.EDIT_AD_LOT}:{info_cb_part}"))
     return kb
 
 
@@ -638,14 +658,13 @@ def new_order(order_id: str, username: str, node_id: int,
     kb = K()
     if not no_refund:
         if confirmation:
-            kb.row(B(_("gl_yes") + " Вернуть", None, f"{CBT.REFUND_CONFIRMED}:{order_id}:{node_id}:{username}"),
-                   B(_("gl_no") + " Не возвращать", None, f"{CBT.REFUND_CANCELLED}:{order_id}:{node_id}:{username}"))
+            kb.row(B(_("gl_yes") + " Вернуть", callback_data=f"{CBT.REFUND_CONFIRMED}:{order_id}:{node_id}:{username}"),
+                   B(_("gl_no") + " Не возвращать", callback_data=f"{CBT.REFUND_CANCELLED}:{order_id}:{node_id}:{username}"))
         else:
-            kb.add(B(_("ord_refund"), None, f"{CBT.REQUEST_REFUND}:{order_id}:{node_id}:{username}"))
+            kb.add(B(_("ord_refund"), callback_data=f"{CBT.REQUEST_REFUND}:{order_id}:{node_id}:{username}"))
 
-    kb.add(B(_("ord_open"), url=f"https://funpay.com/orders/{order_id}/"))
-    kb.row(B(_("ord_answer"), None, f"{CBT.SEND_FP_MESSAGE}:{node_id}:{username}"),
-           B(_("ord_templates"), None,
+    kb.row(B(_("ord_answer"), callback_data=f"{CBT.SEND_FP_MESSAGE}:{node_id}:{username}"),
+           B(_("ord_templates"), callback_data=
              f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:2:{order_id}:{1 if no_refund else 0}"))
     return kb
 
@@ -660,11 +679,11 @@ def reply(node_id: int, username: str, again: bool = False, extend: bool = False
     :return: объект клавиатуры для отправки сообщения в чат FunPay.
     """
     buttons = [
-        B(_("msg_reply2") if again else _("msg_reply"), None, f"{CBT.SEND_FP_MESSAGE}:{node_id}:{username}"),
-        B(_("msg_templates"), None, f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:{int(again)}:{int(extend)}")
+        B(_("msg_reply2") if again else _("msg_reply"), callback_data=f"{CBT.SEND_FP_MESSAGE}:{node_id}:{username}"),
+        B(_("msg_templates"), callback_data=f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:{int(again)}:{int(extend)}")
     ]
     if extend:
-        buttons.append(B(_("msg_more"), None, f"{CBT.EXTEND_CHAT}:{node_id}:{username}"))
+        buttons.append(B(_("msg_more"), callback_data=f"{CBT.EXTEND_CHAT}:{node_id}:{username}"))
     
     buttons.append(B(f"💬 FunPay: {username}", url=f"https://funpay.com/chat/?node={node_id}"))
     
@@ -692,12 +711,12 @@ def templates_list(c: Cortex, offset: int) -> K:
     else:
         for index, tmplt_text in enumerate(templates_on_page):
             display_text = tmplt_text[:30] + "..." if len(tmplt_text) > 30 else tmplt_text
-            kb.add(B(f"📄 {display_text}", None, f"{CBT.EDIT_TMPLT}:{all_templates.index(tmplt_text)}:{offset}"))
+            kb.add(B(f"📄 {display_text}", callback_data=f"{CBT.EDIT_TMPLT}:{all_templates.index(tmplt_text)}:{offset}"))
 
     kb = add_navigation_buttons(kb, offset, MENU_CFG.TMPLT_BTNS_AMOUNT, len(templates_on_page),
                                 len(all_templates), CBT.TMPLT_LIST)
-    kb.add(B(_("tmplt_add"), None, f"{CBT.ADD_TMPLT}:{offset}"))
-    kb.add(B(_("gl_back"), None, CBT.MAIN))
+    kb.add(B(_("tmplt_add"), callback_data=f"{CBT.ADD_TMPLT}:{offset}"))
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
     return kb
 
 
@@ -710,8 +729,8 @@ def edit_template(c: Cortex, template_index: int, offset: int) -> K:
     :return: объект клавиатуры изменения шаблона ответа.
     """
     kb = K() \
-        .add(B(_("gl_delete"), None, f"{CBT.DEL_TMPLT}:{template_index}:{offset}")) \
-        .add(B(_("gl_back"), None, f"{CBT.TMPLT_LIST}:{offset}"))
+        .add(B(_("gl_delete"), callback_data=f"{CBT.DEL_TMPLT}:{template_index}:{offset}")) \
+        .add(B(_("gl_back"), callback_data=f"{CBT.TMPLT_LIST}:{offset}"))
     return kb
 
 
@@ -744,7 +763,7 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
             display_text = tmplt_text.replace("$username", username)
             display_text = display_text[:30] + "..." if len(display_text) > 30 else display_text
             kb.add(B(f"💬 {display_text}",
-                     None, f"{CBT.SEND_TMPLT}:{all_templates.index(tmplt_text)}:{node_id}:{username}:{prev_page}{extra_str}"))
+                     callback_data=f"{CBT.SEND_TMPLT}:{all_templates.index(tmplt_text)}:{node_id}:{username}:{prev_page}{extra_str}"))
 
     extra_list_for_nav = [node_id, username, prev_page]
     if extra:
@@ -758,7 +777,7 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
         back_cb_data = f"{CBT.BACK_TO_REPLY_KB}:{node_id}:{username}:1{extra_str}"
     elif prev_page == 2:
         back_cb_data = f"{CBT.BACK_TO_ORDER_KB}:{node_id}:{username}{extra_str}"
-    kb.add(B(_("gl_back"), None, back_cb_data))
+    kb.add(B(_("gl_back"), callback_data=back_cb_data))
     return kb
 
 
@@ -784,13 +803,13 @@ def plugins_list(c: Cortex, offset: int):
             plugin_obj = c.plugins[uuid]
             status_emoji = '🚀' if plugin_obj.enabled else '💤'
             kb.add(B(f"{status_emoji} {plugin_obj.name} v{plugin_obj.version}",
-                     None, f"{CBT.EDIT_PLUGIN}:{uuid}:{offset}"))
+                     callback_data=f"{CBT.EDIT_PLUGIN}:{uuid}:{offset}"))
 
     kb = add_navigation_buttons(kb, offset, MENU_CFG.PLUGINS_BTNS_AMOUNT, len(plugins_on_page),
                                 len(sorted_plugin_uuids), CBT.PLUGINS_LIST)
 
-    kb.add(B(_("pl_add"), None, f"{CBT.UPLOAD_PLUGIN}:{offset}"))
-    kb.add(B(_("gl_back"), None, CBT.MAIN))
+    kb.add(B(_("pl_add"), callback_data=f"{CBT.UPLOAD_PLUGIN}:{offset}"))
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
     return kb
 
 
@@ -806,22 +825,21 @@ def edit_plugin(c: Cortex, uuid: str, offset: int, ask_to_delete: bool = False):
     plugin_obj = c.plugins[uuid]
     kb = K()
     active_text = _("pl_deactivate") if plugin_obj.enabled else _("pl_activate")
-    kb.add(B(active_text, None, f"{CBT.TOGGLE_PLUGIN}:{uuid}:{offset}"))
+    kb.add(B(active_text, callback_data=f"{CBT.TOGGLE_PLUGIN}:{uuid}:{offset}"))
 
     if plugin_obj.commands:
-        kb.add(B(_("pl_commands"), None, f"{CBT.PLUGIN_COMMANDS}:{uuid}:{offset}"))
+        kb.add(B(_("pl_commands"), callback_data=f"{CBT.PLUGIN_COMMANDS}:{uuid}:{offset}"))
     if plugin_obj.settings_page:
-        kb.add(B(_("pl_settings"), None, f"{CBT.PLUGIN_SETTINGS}:{uuid}:{offset}"))
+        kb.add(B(_("pl_settings"), callback_data=f"{CBT.PLUGIN_SETTINGS}:{uuid}:{offset}"))
 
     if not ask_to_delete:
-        kb.add(B(_("gl_delete"), None, f"{CBT.DELETE_PLUGIN}:{uuid}:{offset}"))
+        kb.add(B(_("gl_delete"), callback_data=f"{CBT.DELETE_PLUGIN}:{uuid}:{offset}"))
     else:
-        kb.row(B(_("gl_yes") + " Удалить плагин", None, f"{CBT.CONFIRM_DELETE_PLUGIN}:{uuid}:{offset}"),
-               B(_("gl_no") + " Оставить", None, f"{CBT.CANCEL_DELETE_PLUGIN}:{uuid}:{offset}"))
-    kb.add(B(_("gl_back"), None, f"{CBT.PLUGINS_LIST}:{offset}"))
+        kb.row(B(_("gl_yes") + " Удалить плагин", callback_data=f"{CBT.CONFIRM_DELETE_PLUGIN}:{uuid}:{offset}"),
+               B(_("gl_no") + " Оставить", callback_data=f"{CBT.CANCEL_DELETE_PLUGIN}:{uuid}:{offset}"))
+    kb.add(B(_("gl_back"), callback_data=f"{CBT.PLUGINS_LIST}:{offset}"))
     return kb
 
 
 def LINKS_KB(language: None | str = None) -> K:
     return K()
-# END OF FILE FunPayCortex/tg_bot/keyboards.py

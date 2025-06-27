@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/config_loader_cp.py
+# START OF FILE FunPayCortex-main/tg_bot/config_loader_cp.py
 
 """
 В данном модуле описаны функции для ПУ загрузки / выгрузки конфиг-файлов.
@@ -83,4 +83,3 @@ def init_config_loader_cp(cortex_instance: Cortex, *args):
 
 
 BIND_TO_PRE_INIT = [init_config_loader_cp]
-# END OF FILE FunPayCortex/tg_bot/config_loader_cp.py

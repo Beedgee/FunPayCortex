@@ -200,44 +200,52 @@ class TGBot:
             utils.save_notification_settings(self.notification_settings)
 
 
-    def reg_admin(self, m: Message):
+    def handle_unauthorized_message(self, m: Message):
+        """
+        Обрабатывает все текстовые сообщения от неавторизованных пользователей.
+        Пытается авторизовать. Если не получается - отправляет сообщение об отказе в доступе.
+        """
         lang = m.from_user.language_code
-        if m.chat.type != "private" or (self.attempts.get(m.from_user.id, 0) >= 5) or m.text is None:
+        if m.chat.type != "private" or m.text is None:
             return
 
         user_input = m.text.strip()
         user_id = m.from_user.id
         username = m.from_user.username or str(user_id)
+        
+        # Попытка входа по паролю администратора
+        is_admin_password = not self.cortex.block_tg_login and cortex_tools.check_password(user_input, self.cortex.MAIN_CFG["Telegram"]["secretKeyHash"])
+        
+        # Попытка входа по ключу менеджера
+        manager_key = self.cortex.MAIN_CFG["Manager"].get("registration_key", "").strip()
+        is_manager_key = manager_key and user_input == manager_key
 
-        # Check for Admin login
-        if not self.cortex.block_tg_login and cortex_tools.check_password(user_input, self.cortex.MAIN_CFG["Telegram"]["secretKeyHash"]):
+        # Если это пароль админа
+        if is_admin_password:
             self.authorized_users[user_id] = {"username": username, "role": "admin"}
             utils.save_authorized_users(self.authorized_users)
-            self.setup_chat_notifications(self.bot, m)  # Ensure notifications are set
+            self.setup_chat_notifications(self.bot, m)
             logger.warning(_("log_access_granted", username, user_id))
             self.send_notification(text=_("access_granted_notification", username, user_id),
                                    notification_type=NotificationTypes.critical, pin=True, exclude_chat_id=m.chat.id)
             self.bot.send_message(m.chat.id, _("access_granted", language=lang))
             return
 
-        # Check for Manager login
-        manager_key = self.cortex.MAIN_CFG["Manager"].get("registration_key", "").strip()
-        if manager_key and user_input == manager_key:
-            if utils.get_user_role(self.authorized_users, user_id) == "admin":
-                self.bot.send_message(m.chat.id, _("manager_reg_admin_error", language=lang))
-                return
-
+        # Если это ключ менеджера
+        if is_manager_key:
             self.authorized_users[user_id] = {"username": username, "role": "manager"}
             utils.save_authorized_users(self.authorized_users)
             self.setup_chat_notifications(self.bot, m)
             logger.warning(_("log_manager_access_granted", username, user_id))
             self.bot.send_message(m.chat.id, _("manager_access_granted", language=lang))
             return
-
-        # Failed login attempt
+            
+        # Если это не пароль и не ключ - отказ в доступе
+        if self.attempts.get(m.from_user.id, 0) >= 5: return
         self.attempts[user_id] = self.attempts.get(user_id, 0) + 1
-        self.bot.send_message(m.chat.id, _("access_denied", m.from_user.username, language=lang))
+        self.bot.send_message(m.chat.id, _("access_denied", m.from_user.username or user_id, language=lang))
         logger.warning(_("log_access_attempt", username, user_id))
+
 
     def ignore_unauthorized_users(self, c: CallbackQuery):
         logger.warning(_("log_click_attempt", c.from_user.username, c.from_user.id, c.message.chat.username,
@@ -268,9 +276,13 @@ class TGBot:
     
     def send_balance(self, m: Message):
         user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
-        if user_role != "admin":
-            self.bot.send_message(m.chat.id, _("admin_only_command"))
+        if user_role not in ["admin", "manager"]:
             return
+        
+        if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_balance", fallback=False):
+            self.bot.send_message(m.chat.id, _("manager_permission_denied"))
+            return
+
         balance_text = utils.generate_balance_text(self.cortex)
         self.bot.send_message(m.chat.id, balance_text, reply_markup=skb.BALANCE_REFRESH_BTN())
     
@@ -921,7 +933,8 @@ class TGBot:
             "FunPay": kb.main_settings, "BlockList": kb.blacklist_settings,
             "NewMessageView": kb.new_message_view_settings, "Greetings": kb.greeting_settings,
             "OrderConfirm": kb.order_confirm_reply_settings, "ReviewReply": kb.review_reply_settings,
-            "Proxy": lambda ctx, offset_kb: kb.proxy(ctx, offset_kb, getattr(ctx.telegram, 'pr_dict', {}))
+            "Proxy": lambda ctx, offset_kb: kb.proxy(ctx, offset_kb, getattr(ctx.telegram, 'pr_dict', {})),
+            "ManagerPermissions": kb.manager_permissions_settings,
         }
         reply_markup_to_send = None
         if section_name == "Telegram":
@@ -974,7 +987,7 @@ class TGBot:
         user_id = c.from_user.id
         
         user_role = utils.get_user_role(self.authorized_users, user_id)
-        admin_only_sections = ["main", "bl", "au", "proxy"]
+        admin_only_sections = ["main", "bl", "au", "proxy", "mp"]
         
         if section_key in admin_only_sections and user_role != "admin":
             self.bot.answer_callback_query(c.id, _("admin_only_command"), show_alert=True)
@@ -993,7 +1006,8 @@ class TGBot:
                    kb.greeting_settings, [self.cortex]),
             "oc": (_("desc_oc", utils.escape(self.cortex.MAIN_CFG['OrderConfirm']['replyText'])),
                    kb.order_confirm_reply_settings, [self.cortex]),
-            "au": (_("desc_au"), lambda c, o: kb.authorized_users(c, o, user_id), [self.cortex, 0])
+            "au": (_("desc_au"), lambda c_instance, o: kb.authorized_users(c_instance, o, user_id), [self.cortex, 0]),
+            "mp": (_("desc_mp"), kb.manager_permissions_settings, [self.cortex])
         }
         current_section_data = sections_map.get(section_key)
         if current_section_data:
@@ -1061,72 +1075,113 @@ class TGBot:
         c.data = f"{CBT.CATEGORY}:lang"
         self.open_settings_section(c)
 
+    def close_menu(self, c: CallbackQuery):
+        try:
+            self.bot.delete_message(c.message.chat.id, c.message.id)
+            self.bot.answer_callback_query(c.id)
+        except ApiTelegramException:
+            self.bot.answer_callback_query(c.id, _("menu_closed"), show_alert=True)
+
+    def send_help_text(self, c: CallbackQuery):
+        help_key = c.data.split(":")[1]
+        help_text = _(help_key)
+        if help_text == help_key:
+            help_text = _("help_not_found")
+        
+        try:
+            self.bot.send_message(c.message.chat.id, help_text, reply_markup=K().add(B(_('gl_close'), callback_data=CBT.DELETE_MESSAGE)))
+            self.bot.answer_callback_query(c.id)
+        except ApiTelegramException as e:
+            logger.error(f"Ошибка при отправке справки: {e}")
+            self.bot.answer_callback_query(c.id, _("gl_error"), show_alert=True)
+
+    def delete_message_cb(self, c: CallbackQuery):
+        try:
+            self.bot.delete_message(c.message.chat.id, c.message.id)
+            self.bot.answer_callback_query(c.id)
+        except ApiTelegramException:
+            self.bot.answer_callback_query(c.id)
+
 
     def __register_handlers(self):
         self.mdw_handler(self.setup_chat_notifications, update_types=['message'])
-        self.msg_handler(self.reg_admin, func=lambda msg: msg.from_user.id not in self.authorized_users,
-                         content_types=['text', 'document', 'photo', 'sticker'])
-        self.cbq_handler(self.ignore_unauthorized_users, lambda c: c.from_user.id not in self.authorized_users)
-        self.cbq_handler(self.param_disabled, lambda c: c.data.startswith(CBT.PARAM_DISABLED))
-        self.msg_handler(self.run_file_handlers, content_types=["photo", "document"],
-                         func=lambda m: self.is_file_handler(m))
 
-        self.msg_handler(self.send_settings_menu, commands=["menu", "start"])
-        self.msg_handler(self.send_profile, commands=["profile"])
-        self.msg_handler(self.send_balance, commands=["balance"])
-        self.cbq_handler(self.update_balance, lambda c: c.data == CBT.BALANCE_REFRESH)
-        self.msg_handler(self.act_change_cookie, commands=["change_cookie", "golden_key"])
-        self.msg_handler(self.change_cookie, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY))
-        self.cbq_handler(self.update_profile, lambda c: c.data == CBT.UPDATE_PROFILE)
-        self.msg_handler(self.act_manual_delivery_test, commands=["test_lot"])
-        self.msg_handler(self.act_upload_image, commands=["upload_chat_img", "upload_offer_img"])
-        self.cbq_handler(self.act_edit_greetings_text, lambda c: c.data == CBT.EDIT_GREETINGS_TEXT)
-        self.msg_handler(self.edit_greetings_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_GREETINGS_TEXT))
-        self.cbq_handler(self.act_edit_greetings_cooldown, lambda c: c.data == CBT.EDIT_GREETINGS_COOLDOWN)
-        self.msg_handler(self.edit_greetings_cooldown, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_GREETINGS_COOLDOWN))
-        self.cbq_handler(self.act_edit_order_confirm_reply_text, lambda c: c.data == CBT.EDIT_ORDER_CONFIRM_REPLY_TEXT)
-        self.msg_handler(self.edit_order_confirm_reply_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_ORDER_CONFIRM_REPLY_TEXT))
-        self.cbq_handler(self.act_edit_review_reply_text, lambda c: c.data.startswith(f"{CBT.EDIT_REVIEW_REPLY_TEXT}:"))
-        self.msg_handler(self.edit_review_reply_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_REVIEW_REPLY_TEXT))
-        self.msg_handler(self.manual_delivery_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.MANUAL_AD_TEST))
-        self.msg_handler(self.act_ban, commands=["ban"])
-        self.msg_handler(self.ban, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.BAN))
-        self.msg_handler(self.act_unban, commands=["unban"])
-        self.msg_handler(self.unban, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.UNBAN))
-        self.msg_handler(self.send_ban_list, commands=["black_list"])
-        self.msg_handler(self.act_edit_watermark, commands=["watermark"])
-        self.msg_handler(self.edit_watermark, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_WATERMARK))
-        self.msg_handler(self.send_logs, commands=["logs"])
-        self.msg_handler(self.del_logs, commands=["del_logs"])
-        self.msg_handler(self.about, commands=["about"])
-        self.msg_handler(self.check_updates, commands=["check_updates"])
-        self.msg_handler(self.update, commands=["update"])
-        self.msg_handler(self.get_backup, commands=["get_backup"])
-        self.msg_handler(self.create_backup, commands=["create_backup"])
-        self.msg_handler(self.send_system_info, commands=["sys"])
-        self.msg_handler(self.restart_cortex, commands=["restart"])
-        self.msg_handler(self.ask_power_off, commands=["power_off"])
-        self.msg_handler(self.send_announcements_kb, commands=["announcements"])
-        self.cbq_handler(self.send_review_reply_text, lambda c: c.data.startswith(f"{CBT.SEND_REVIEW_REPLY_TEXT}:"))
-        self.cbq_handler(self.act_send_funpay_message, lambda c: c.data.startswith(f"{CBT.SEND_FP_MESSAGE}:"))
-        self.cbq_handler(self.open_reply_menu, lambda c: c.data.startswith(f"{CBT.BACK_TO_REPLY_KB}:"))
-        self.cbq_handler(self.extend_new_message_notification, lambda c: c.data.startswith(f"{CBT.EXTEND_CHAT}:"))
-        self.msg_handler(self.send_funpay_message, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.SEND_FP_MESSAGE))
-        self.cbq_handler(self.ask_confirm_refund, lambda c: c.data.startswith(f"{CBT.REQUEST_REFUND}:"))
-        self.cbq_handler(self.cancel_refund, lambda c: c.data.startswith(f"{CBT.REFUND_CANCELLED}:"))
-        self.cbq_handler(self.refund, lambda c: c.data.startswith(f"{CBT.REFUND_CONFIRMED}:"))
-        self.cbq_handler(self.open_order_menu, lambda c: c.data.startswith(f"{CBT.BACK_TO_ORDER_KB}:"))
-        self.cbq_handler(self.open_cp, lambda c: c.data == CBT.MAIN)
-        self.cbq_handler(self.open_cp2, lambda c: c.data == CBT.MAIN2)
-        self.cbq_handler(self.open_settings_section, lambda c: c.data.startswith(f"{CBT.CATEGORY}:"))
-        self.cbq_handler(self.switch_param, lambda c: c.data.startswith(f"{CBT.SWITCH}:"))
-        self.cbq_handler(self.switch_chat_notification, lambda c: c.data.startswith(f"{CBT.SWITCH_TG_NOTIFICATIONS}:"))
-        self.cbq_handler(self.power_off, lambda c: c.data.startswith(f"{CBT.SHUT_DOWN}:"))
-        self.cbq_handler(self.cancel_power_off, lambda c: c.data == CBT.CANCEL_SHUTTING_DOWN)
-        self.cbq_handler(self.cancel_action, lambda c: c.data == CBT.CLEAR_STATE)
-        self.cbq_handler(self.send_old_mode_help_text, lambda c: c.data == CBT.OLD_MOD_HELP)
-        self.cbq_handler(self.empty_callback, lambda c: c.data == CBT.EMPTY)
-        self.cbq_handler(self.switch_lang, lambda c: c.data.startswith(f"{CBT.LANG}:"))
+        # Обработка любых текстовых сообщений от неавторизованных пользователей
+        self.msg_handler(self.handle_unauthorized_message,
+                         func=lambda m: m.text is not None and m.from_user.id not in self.authorized_users,
+                         content_types=['text'])
+        
+        # Блокировка всех кнопок для неавторизованных
+        self.cbq_handler(self.ignore_unauthorized_users, lambda c: c.from_user.id not in self.authorized_users)
+        
+        # Общие колбэки для всех
+        self.cbq_handler(self.param_disabled, lambda c: c.data.startswith(CBT.PARAM_DISABLED))
+
+        # Обработчики для авторизованных пользователей
+        auth_filter = lambda msg: msg.from_user.id in self.authorized_users
+        auth_cb_filter = lambda call: call.from_user.id in self.authorized_users
+
+        self.msg_handler(self.run_file_handlers, content_types=["photo", "document"], func=lambda m: self.is_file_handler(m) and auth_filter(m))
+        self.msg_handler(self.send_settings_menu, commands=["menu", "start"], func=auth_filter)
+        self.msg_handler(self.send_profile, commands=["profile"], func=auth_filter)
+        self.msg_handler(self.send_balance, commands=["balance"], func=auth_filter)
+        self.cbq_handler(self.update_balance, lambda c: c.data == CBT.BALANCE_REFRESH and auth_cb_filter(c))
+        self.msg_handler(self.act_change_cookie, commands=["change_cookie", "golden_key"], func=auth_filter)
+        self.msg_handler(self.change_cookie, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY) and auth_filter(m))
+        self.cbq_handler(self.update_profile, lambda c: c.data == CBT.UPDATE_PROFILE and auth_cb_filter(c))
+        self.msg_handler(self.act_manual_delivery_test, commands=["test_lot"], func=auth_filter)
+        self.msg_handler(self.act_upload_image, commands=["upload_chat_img", "upload_offer_img"], func=auth_filter)
+        self.cbq_handler(self.act_edit_greetings_text, lambda c: c.data == CBT.EDIT_GREETINGS_TEXT and auth_cb_filter(c))
+        self.msg_handler(self.edit_greetings_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_GREETINGS_TEXT) and auth_filter(m))
+        self.cbq_handler(self.act_edit_greetings_cooldown, lambda c: c.data == CBT.EDIT_GREETINGS_COOLDOWN and auth_cb_filter(c))
+        self.msg_handler(self.edit_greetings_cooldown, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_GREETINGS_COOLDOWN) and auth_filter(m))
+        self.cbq_handler(self.act_edit_order_confirm_reply_text, lambda c: c.data == CBT.EDIT_ORDER_CONFIRM_REPLY_TEXT and auth_cb_filter(c))
+        self.msg_handler(self.edit_order_confirm_reply_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_ORDER_CONFIRM_REPLY_TEXT) and auth_filter(m))
+        self.cbq_handler(self.act_edit_review_reply_text, lambda c: c.data.startswith(f"{CBT.EDIT_REVIEW_REPLY_TEXT}:") and auth_cb_filter(c))
+        self.msg_handler(self.edit_review_reply_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_REVIEW_REPLY_TEXT) and auth_filter(m))
+        self.msg_handler(self.manual_delivery_text, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.MANUAL_AD_TEST) and auth_filter(m))
+        self.msg_handler(self.act_ban, commands=["ban"], func=auth_filter)
+        self.msg_handler(self.ban, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.BAN) and auth_filter(m))
+        self.msg_handler(self.act_unban, commands=["unban"], func=auth_filter)
+        self.msg_handler(self.unban, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.UNBAN) and auth_filter(m))
+        self.msg_handler(self.send_ban_list, commands=["black_list"], func=auth_filter)
+        self.msg_handler(self.act_edit_watermark, commands=["watermark"], func=auth_filter)
+        self.msg_handler(self.edit_watermark, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.EDIT_WATERMARK) and auth_filter(m))
+        self.msg_handler(self.send_logs, commands=["logs"], func=auth_filter)
+        self.msg_handler(self.del_logs, commands=["del_logs"], func=auth_filter)
+        self.msg_handler(self.about, commands=["about"], func=auth_filter)
+        self.msg_handler(self.check_updates, commands=["check_updates"], func=auth_filter)
+        self.msg_handler(self.update, commands=["update"], func=auth_filter)
+        self.msg_handler(self.get_backup, commands=["get_backup"], func=auth_filter)
+        self.msg_handler(self.create_backup, commands=["create_backup"], func=auth_filter)
+        self.msg_handler(self.send_system_info, commands=["sys"], func=auth_filter)
+        self.msg_handler(self.restart_cortex, commands=["restart"], func=auth_filter)
+        self.msg_handler(self.ask_power_off, commands=["power_off"], func=auth_filter)
+        self.msg_handler(self.send_announcements_kb, commands=["announcements"], func=auth_filter)
+        self.cbq_handler(self.send_review_reply_text, lambda c: c.data.startswith(f"{CBT.SEND_REVIEW_REPLY_TEXT}:") and auth_cb_filter(c))
+        self.cbq_handler(self.act_send_funpay_message, lambda c: c.data.startswith(f"{CBT.SEND_FP_MESSAGE}:") and auth_cb_filter(c))
+        self.cbq_handler(self.open_reply_menu, lambda c: c.data.startswith(f"{CBT.BACK_TO_REPLY_KB}:") and auth_cb_filter(c))
+        self.cbq_handler(self.extend_new_message_notification, lambda c: c.data.startswith(f"{CBT.EXTEND_CHAT}:") and auth_cb_filter(c))
+        self.msg_handler(self.send_funpay_message, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.SEND_FP_MESSAGE) and auth_filter(m))
+        self.cbq_handler(self.ask_confirm_refund, lambda c: c.data.startswith(f"{CBT.REQUEST_REFUND}:") and auth_cb_filter(c))
+        self.cbq_handler(self.cancel_refund, lambda c: c.data.startswith(f"{CBT.REFUND_CANCELLED}:") and auth_cb_filter(c))
+        self.cbq_handler(self.refund, lambda c: c.data.startswith(f"{CBT.REFUND_CONFIRMED}:") and auth_cb_filter(c))
+        self.cbq_handler(self.open_order_menu, lambda c: c.data.startswith(f"{CBT.BACK_TO_ORDER_KB}:") and auth_cb_filter(c))
+        self.cbq_handler(self.open_cp, lambda c: c.data == CBT.MAIN and auth_cb_filter(c))
+        self.cbq_handler(self.open_cp2, lambda c: c.data == CBT.MAIN2 and auth_cb_filter(c))
+        self.cbq_handler(self.open_settings_section, lambda c: c.data.startswith(f"{CBT.CATEGORY}:") and auth_cb_filter(c))
+        self.cbq_handler(self.switch_param, lambda c: c.data.startswith(f"{CBT.SWITCH}:") and auth_cb_filter(c))
+        self.cbq_handler(self.switch_chat_notification, lambda c: c.data.startswith(f"{CBT.SWITCH_TG_NOTIFICATIONS}:") and auth_cb_filter(c))
+        self.cbq_handler(self.power_off, lambda c: c.data.startswith(f"{CBT.SHUT_DOWN}:") and auth_cb_filter(c))
+        self.cbq_handler(self.cancel_power_off, lambda c: c.data == CBT.CANCEL_SHUTTING_DOWN and auth_cb_filter(c))
+        self.cbq_handler(self.cancel_action, lambda c: c.data == CBT.CLEAR_STATE and auth_cb_filter(c))
+        self.cbq_handler(self.send_old_mode_help_text, lambda c: c.data == CBT.OLD_MOD_HELP and auth_cb_filter(c))
+        self.cbq_handler(self.empty_callback, lambda c: c.data == CBT.EMPTY and auth_cb_filter(c))
+        self.cbq_handler(self.switch_lang, lambda c: c.data.startswith(f"{CBT.LANG}:") and auth_cb_filter(c))
+        self.cbq_handler(self.close_menu, lambda c: c.data == CBT.CLOSE_MENU and auth_cb_filter(c))
+        self.cbq_handler(self.send_help_text, lambda c: c.data.startswith(f"{CBT.SEND_HELP}:") and auth_cb_filter(c))
+        self.cbq_handler(self.delete_message_cb, lambda c: c.data == CBT.DELETE_MESSAGE and auth_cb_filter(c))
+
 
     def send_notification(self, text: str | None, keyboard: K | None = None,
                           notification_type: str = utils.NotificationTypes.other, photo: bytes | None = None,
@@ -1177,6 +1232,10 @@ class TGBot:
                     except Exception as e_pin_generic:
                         logger.error(f"Непредвиденная ошибка при закреплении сообщения в чате {msg.chat.id}: {e_pin_generic}")
 
+            except requests.exceptions.ConnectionError as e_conn:
+                logger.error(f"Ошибка соединения при отправке уведомления в чат {chat_id_str}: {e_conn}")
+                time.sleep(10)
+                continue
             except ApiTelegramException as e:
                 logger.error(_("log_tg_notification_error", chat_id_str) + f" (API Error: {e.error_code} - {e.description})")
                 logger.debug("TRACEBACK", exc_info=True)
@@ -1280,6 +1339,11 @@ class TGBot:
                 bot_username = self.bot.get_me().username
                 logger.info(_("log_tg_started", bot_username))
                 self.bot.infinity_polling(logger_level=logging.WARNING, timeout=60, long_polling_timeout=30)
+            except requests.exceptions.ConnectionError as e_conn:
+                k_err_count += 1
+                logger.error(_("log_tg_update_error", k_err_count) + f" (Connection Error: {e_conn})")
+                logger.debug("TRACEBACK", exc_info=True)
+                time.sleep(60)
             except ApiTelegramException as e_api:
                 k_err_count += 1
                 logger.error(_("log_tg_update_error", k_err_count) + f" (API Error: {e_api.error_code} - {e_api.description})")
@@ -1293,11 +1357,6 @@ class TGBot:
                      cortex_tools.shut_down()
                      break
                 time.sleep(30)
-            except requests.exceptions.ConnectionError as e_conn:
-                k_err_count += 1
-                logger.error(_("log_tg_update_error", k_err_count) + f" (Connection Error: {e_conn})")
-                logger.debug("TRACEBACK", exc_info=True)
-                time.sleep(60)
             except Exception as e:
                 k_err_count += 1
                 logger.error(_("log_tg_update_error", k_err_count) + f" (General Error: {e})")
@@ -1307,4 +1366,3 @@ class TGBot:
     def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
-# END OF FILE FunPayCortex/tg_bot/bot.py

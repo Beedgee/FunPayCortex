@@ -25,7 +25,7 @@ category_name: str - название категории настроек.
     rr - ответ на отзывы.
     gr - настройки приветственного сообщения.
     oc - подтверждение заказа.
-
+    mp - настройки прав менеджеров.
 """
 
 SWITCH = "3"
@@ -715,7 +715,9 @@ Callback для активации режима ввода ключа регис
 REVOKE_USER_ACCESS = "76"
 """
 Callback для отзыва доступа у пользователя.
-Использование: CBT.REVOKE_USER_ACCESS:user_id:offset
+Использование: CBT.REVOKE_USER_ACCESS:user_id:offset:confirmation
+
+confirmation: 0/1 - подтверждение отзыва
 """
 
 CHANGE_USER_ROLE = "77"
@@ -723,4 +725,29 @@ CHANGE_USER_ROLE = "77"
 Callback для изменения роли пользователя.
 Использование: CBT.CHANGE_USER_ROLE:user_id:offset:new_role
 """
-# END OF FILE FunPayCortex/tg_bot/CBT.py
+
+CLOSE_MENU = "78"
+"""
+Callback для закрытия (удаления) меню.
+"""
+
+SEND_HELP = "79"
+"""
+Callback для отправки текста-справки.
+Использование: CBT.SEND_HELP:help_text_key
+"""
+
+DELETE_MESSAGE = "80"
+"""
+Callback для удаления сообщения.
+"""
+
+EXIT_FROM_CP = "81"
+"""
+Callback для запроса подтверждения выхода из ПУ.
+"""
+
+CONFIRM_EXIT_FROM_CP = "82"
+"""
+Callback для подтверждения выхода из ПУ.
+"""

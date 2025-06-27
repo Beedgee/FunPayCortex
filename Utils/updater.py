@@ -240,6 +240,20 @@ def download_zip(url: str) -> int:
                     f.write(chunk)
         logger.info("Архив обновления успешно загружен.")
         return 0
+    except requests.exceptions.SSLError as e:
+        logger.error(f"SSL-ошибка при загрузке архива обновления: {e}. Попробую скачать без проверки сертификата.")
+        logger.debug("TRACEBACK", exc_info=True)
+        try:
+            with requests.get(url, stream=True, timeout=60, verify=False) as r:
+                r.raise_for_status()
+                with open("storage/cache/update.zip", 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            logger.info("Архив обновления успешно загружен (без проверки SSL).")
+            return 0
+        except Exception as e_no_verify:
+            logger.error(f"Повторная ошибка при загрузке архива обновления (без проверки SSL): {e_no_verify}")
+            return 1
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка сети при загрузке архива обновления: {e}")
         logger.debug("TRACEBACK", exc_info=True)
@@ -372,5 +386,3 @@ def install_release(folder_name_from_zip: str) -> int:
         logger.error(f"Ошибка при установке релиза: {e}")
         logger.debug("TRACEBACK", exc_info=True)
         return 1
-
-# END OF FILE FunPayCortex/Utils/updater.py

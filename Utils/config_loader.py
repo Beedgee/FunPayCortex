@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/Utils/config_loader.py
+# START OF FILE FunPayCortex-main/Utils/config_loader.py
 
 """
 В данном модуле написаны функции для валидации конфигов.
@@ -93,6 +93,13 @@ def load_main_config(config_path: str):
         "Manager": {
             "registration_key": "any+empty"
         },
+        
+        "ManagerPermissions": {
+            "can_view_balance": ["0", "1"],
+            "can_edit_ar": ["0", "1"],
+            "can_edit_ad": ["0", "1"],
+            "can_edit_templates": ["0", "1"]
+        },
 
         "BlockList": {
             "blockDelivery": ["0", "1"],
@@ -165,8 +172,13 @@ def load_main_config(config_path: str):
 
     for section_name in values:
         if section_name not in config.sections():
-            if section_name == "Manager":
-                config.add_section("Manager")
+            if section_name in ["Manager", "ManagerPermissions"]:
+                config.add_section(section_name)
+                if section_name == "ManagerPermissions":
+                    config.set("ManagerPermissions", "can_view_balance", "0")
+                    config.set("ManagerPermissions", "can_edit_ar", "0")
+                    config.set("ManagerPermissions", "can_edit_ad", "0")
+                    config.set("ManagerPermissions", "can_edit_templates", "0")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
             else:
@@ -349,5 +361,3 @@ def load_auto_delivery_config(config_path: str):
         if "$product" not in lot_response:
             raise ConfigParseError(config_path, lot_title, NoProductVarError())
     return config
-
-# END OF FILE FunPayCortex/Utils/config_loader.py
