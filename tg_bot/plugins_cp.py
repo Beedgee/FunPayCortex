@@ -153,6 +153,7 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
         bot.answer_callback_query(c.id)
 
     def delete_plugin(c: CallbackQuery):
+        from tg_bot.MENU_CFG import PLUGINS_BTNS_AMOUNT
         split_data = c.data.split(":")
         plugin_uuid, offset_str = split_data[1], split_data[2]
         offset = int(offset_str)
@@ -193,8 +194,8 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
                 cortex_instance.plugins.pop(plugin_uuid)
 
             all_plugins_after_delete = list(sorted(cortex_instance.plugins.keys(), key=lambda x_uuid: cortex_instance.plugins[x_uuid].name.lower()))
-            new_offset = max(0, offset - MENU_CFG.PLUGINS_BTNS_AMOUNT if offset >= MENU_CFG.PLUGINS_BTNS_AMOUNT and len(all_plugins_after_delete) < offset + MENU_CFG.PLUGINS_BTNS_AMOUNT else offset)
-            new_offset = 0 if len(all_plugins_after_delete) <= MENU_CFG.PLUGINS_BTNS_AMOUNT else new_offset
+            new_offset = max(0, offset - PLUGINS_BTNS_AMOUNT if offset >= PLUGINS_BTNS_AMOUNT and len(all_plugins_after_delete) < offset + PLUGINS_BTNS_AMOUNT else offset)
+            new_offset = 0 if len(all_plugins_after_delete) <= PLUGINS_BTNS_AMOUNT else new_offset
 
             c.data = f"{CBT.PLUGINS_LIST}:{new_offset}"
             open_plugins_list(c)
@@ -218,6 +219,37 @@ def init_plugins_cp(cortex_instance: Cortex, *args):
         elif isinstance(obj, Message):
             result = bot.send_message(obj.chat.id, text_prompt, reply_markup=CLEAR_STATE_BTN())
             tg.set_state(obj.chat.id, result.id, obj.from_user.id, CBT.UPLOAD_PLUGIN, {"offset": 0})
+
+    # ==================== МОИ ИЗМЕНЕНИЯ НАЧИНАЮТСЯ ЗДЕСЬ ====================
+    def open_plugin_settings_handler(c: CallbackQuery):
+        """
+        Перенаправляет пользователя на страницу настроек конкретного плагина.
+        """
+        bot = cortex_instance.telegram.bot
+        action_parts = c.data.split(":")
+        plugin_uuid = action_parts[1]
+
+        if not check_plugin_exists(plugin_uuid, c):
+            bot.answer_callback_query(c.id)
+            return
+
+        plugin_obj = cortex_instance.plugins[plugin_uuid]
+
+        # Проверяем, есть ли у плагина страница настроек и имя обработчика
+        if plugin_obj.settings_page and hasattr(plugin_obj.plugin, 'SETTINGS_PAGE_HANDLER_NAME'):
+            handler_name = plugin_obj.plugin.SETTINGS_PAGE_HANDLER_NAME
+            # Проверяем, есть ли сама функция-обработчик в модуле плагина
+            if hasattr(plugin_obj.plugin, handler_name):
+                handler_func = getattr(plugin_obj.plugin, handler_name)
+                # Вызываем обработчик из плагина
+                handler_func(cortex_instance, c)
+                return
+        
+        # Если что-то пошло не так, сообщаем об этом
+        bot.answer_callback_query(c.id, "❌ У этого плагина нет страницы настроек.", show_alert=True)
+
+    tg.cbq_handler(open_plugin_settings_handler, lambda c: c.data.startswith(f"{CBT.PLUGIN_SETTINGS}:"))
+    # ==================== МОИ ИЗМЕНЕНИЯ ЗАКАНЧИВАЮТСЯ ЗДЕСЬ ====================
 
     tg.cbq_handler(open_plugins_list, lambda c: c.data.startswith(f"{CBT.PLUGINS_LIST}:"))
     tg.cbq_handler(open_edit_plugin_cp, lambda c: c.data.startswith(f"{CBT.EDIT_PLUGIN}:"))

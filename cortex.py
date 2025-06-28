@@ -4,13 +4,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from FunPayAPI import types
-from FunPayAPI.common.enums import SubCategoryTypes
+from FunPayAPI.common.enums import SubCategoryTypes, OrderStatuses
+from FunPayAPI.types import WithdrawHistory, WithdrawItem
 
 if TYPE_CHECKING:
     from configparser import ConfigParser
 
 from tg_bot import auto_response_cp, config_loader_cp, auto_delivery_cp, templates_cp, plugins_cp, file_uploader, \
-    authorized_users_cp, proxy_cp, default_cp
+    authorized_users_cp, proxy_cp, default_cp, statistics_cp
 from types import ModuleType
 import Utils.exceptions
 from uuid import UUID
@@ -24,6 +25,7 @@ import random
 import time
 import sys
 import os
+import json
 from pip._internal.cli.main import main
 import FunPayAPI
 import handlers
@@ -164,6 +166,28 @@ class Cortex(object):
         }
         self.plugins: dict[str, PluginData] = {}
         self.disabled_plugins = cortex_tools.load_disabled_plugins()
+        self.order_confirmations = {}
+        self._load_order_confirmations()
+
+    def _load_order_confirmations(self):
+        """Загружает кэш подтвержденных заказов."""
+        filepath = "storage/cache/order_confirmations.json"
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    self.order_confirmations = json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.error(f"Ошибка загрузки кэша подтвержденных заказов: {e}")
+                self.order_confirmations = {}
+
+    def _save_order_confirmations(self):
+        """Сохраняет кэш подтвержденных заказов."""
+        filepath = "storage/cache/order_confirmations.json"
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(self.order_confirmations, f, indent=4, ensure_ascii=False)
+        except IOError as e:
+            logger.error(f"Ошибка сохранения кэша подтвержденных заказов: {e}")
 
     def __init_account(self) -> None:
         while True:
@@ -291,9 +315,7 @@ class Cortex(object):
                 continue
 
             raise_ok = False
-            error_text_msg = ""
             time_delta_str = ""
-            exception_occurred = None
 
             try:
                 time.sleep(random.uniform(0.5, 1.5))
@@ -309,7 +331,6 @@ class Cortex(object):
                 self.raise_time[category_obj.id] = next_raise_attempt_time
                 next_call = min(next_call, next_raise_attempt_time)
             except FunPayAPI.exceptions.RaiseError as e:
-                exception_occurred = e
                 error_text_msg = e.error_message if e.error_message else "Неизвестная ошибка FunPay."
                 wait_duration = e.wait_time if e.wait_time is not None else 60
                 logger.warning(_("crd_raise_time_err", category_obj.name, error_text_msg, cortex_tools.time_to_str(wait_duration)))
@@ -317,7 +338,6 @@ class Cortex(object):
                 self.raise_time[category_obj.id] = next_raise_attempt_time
                 next_call = min(next_call, next_raise_attempt_time)
             except Exception as e:
-                exception_occurred = e
                 default_retry_delay = 60
                 error_log_message = _("crd_raise_unexpected_err", category_obj.name)
                 if isinstance(e, FunPayAPI.exceptions.RequestFailedError) and e.status_code in (503, 403, 429):
@@ -329,8 +349,8 @@ class Cortex(object):
                 next_raise_attempt_time = int(time.time()) + 1
                 next_call = min(next_call, next_raise_attempt_time)
 
-            if raise_ok or isinstance(exception_occurred, FunPayAPI.exceptions.RaiseError):
-                 self.run_handlers(self.post_lots_raise_handlers, (self, category_obj, error_text_msg + time_delta_str))
+            if raise_ok:
+                self.run_handlers(self.post_lots_raise_handlers, (self, category_obj, time_delta_str))
         return next_call if next_call < float("inf") else 300
 
     def get_order_from_object(self, obj: types.OrderShortcut | types.Message | types.ChatShortcut,
@@ -581,6 +601,122 @@ class Cortex(object):
             time.sleep(default_sleep_time)
             self.update_session()
 
+    def statistics_notification_loop(self):
+        """Цикл для отправки периодических уведомлений со статистикой."""
+        logger.info("Запущен цикл периодических уведомлений со статистикой.")
+        while True:
+            try:
+                if not self.MAIN_CFG.getboolean("Statistics", "enabled", fallback=False):
+                    time.sleep(300) # Проверяем раз в 5 минут, не включили ли
+                    continue
+
+                interval_hours = self.MAIN_CFG.getint("Statistics", "notification_interval", fallback=24)
+                time.sleep(interval_hours * 3600)
+
+                if not self.MAIN_CFG.getboolean("Statistics", "enabled", fallback=False):
+                    continue
+                
+                chat_ids_str = self.MAIN_CFG.get("Statistics", "notification_chats", fallback="")
+                if not chat_ids_str:
+                    continue
+
+                logger.info("Отправка периодического отчета по статистике...")
+                stats_data = self.generate_advanced_stats()
+                stats_text = tg_bot.utils.generate_advanced_stats_text(self, stats_data)
+                
+                chat_ids = [int(cid.strip()) for cid in chat_ids_str.split(",") if cid.strip().isdigit()]
+                
+                for chat_id in chat_ids:
+                    self.telegram.send_notification(text=stats_text, chat_id=chat_id)
+                    time.sleep(1)
+
+            except Exception as e:
+                logger.error(f"Ошибка в цикле уведомлений статистики: {e}", exc_info=True)
+                time.sleep(600) # В случае ошибки, ждем 10 минут
+
+    def generate_advanced_stats(self) -> dict:
+        """
+        Собирает и возвращает расширенную статистику по аккаунту.
+        Возвращает словарь с данными.
+        """
+        now = datetime.datetime.now()
+        parsing_period_days = self.MAIN_CFG.getint("Statistics", "parsing_period", fallback=30)
+        
+        stats = {
+            "withdraw": {"hour": {}, "day": {}, "two_days": {}},
+            "sales": {"day": (0, {}), "week": (0, {}), "month": (0, {}), "period": (0, {})},
+            "refunds": {"day": (0, {}), "week": (0, {}), "month": (0, {}), "period": (0, {})},
+            "parsing_period": parsing_period_days,
+        }
+        
+        # 1. Расчет будущих поступлений из кэша
+        for order_id, data in self.order_confirmations.copy().items():
+            currency_symbol = data.get("currency", "¤")
+            confirmation_time = data.get("time", 0)
+            price = data.get("price", 0)
+            
+            if now.timestamp() - confirmation_time > 172800:
+                del self.order_confirmations[order_id]
+                continue
+
+            time_left = 172800 - (now.timestamp() - confirmation_time)
+            
+            if 0 < time_left <= 3600:
+                stats["withdraw"]["hour"][currency_symbol] = stats["withdraw"]["hour"].get(currency_symbol, 0) + price
+            elif 3600 < time_left <= 86400:
+                stats["withdraw"]["day"][currency_symbol] = stats["withdraw"]["day"].get(currency_symbol, 0) + price
+            elif 86400 < time_left <= 172800:
+                stats["withdraw"]["two_days"][currency_symbol] = stats["withdraw"]["two_days"].get(currency_symbol, 0) + price
+        self._save_order_confirmations()
+
+        # 2. Сбор статистики продаж и возвратов
+        try:
+            all_orders = []
+            next_page_id = None
+            period_ago = now - datetime.timedelta(days=parsing_period_days)
+            logger.info(f"Начинаю сбор статистики продаж за {parsing_period_days} дней...")
+            
+            while True:
+                _, orders_chunk, _, _ = self.account.get_sales(start_from=next_page_id, include_paid=False, include_closed=True, include_refunded=True)
+                if not orders_chunk:
+                    logger.info("Все страницы заказов загружены.")
+                    break
+                
+                all_orders.extend(orders_chunk)
+                next_page_id = orders_chunk[-1].id
+                
+                if orders_chunk[-1].date < period_ago:
+                    logger.info(f"Достигнута граница периода ({parsing_period_days} дней). Загружено {len(all_orders)} заказов.")
+                    break
+                logger.debug(f"Загружен чанк заказов, всего {len(all_orders)}. Последний ID: {next_page_id}")
+                time.sleep(0.5)
+
+            relevant_orders = [order for order in all_orders if order.date >= period_ago]
+
+            for order in relevant_orders:
+                currency_symbol = str(order.currency)
+                target_key = "refunds" if order.status == OrderStatuses.REFUNDED else "sales"
+
+                def update_stats(period_key):
+                    count, price_dict = stats[target_key][period_key]
+                    new_price_dict = price_dict.copy()
+                    new_price_dict[currency_symbol] = new_price_dict.get(currency_symbol, 0) + order.price
+                    stats[target_key][period_key] = (count + 1, new_price_dict)
+
+                update_stats("period")
+                
+                if now - order.date < datetime.timedelta(days=30):
+                    update_stats("month")
+                if now - order.date < datetime.timedelta(days=7):
+                    update_stats("week")
+                if now - order.date < datetime.timedelta(days=1):
+                    update_stats("day")
+
+        except Exception as e:
+            logger.error(f"Ошибка при сборе статистики продаж: {e}", exc_info=True)
+            
+        return stats
+
     def init(self):
         self.add_handlers_from_plugin(handlers)
         self.add_handlers_from_plugin(announcements)
@@ -589,7 +725,7 @@ class Cortex(object):
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
             self.__init_telegram()
             for module in [auto_response_cp, auto_delivery_cp, config_loader_cp, templates_cp, plugins_cp,
-                           file_uploader, authorized_users_cp, proxy_cp, default_cp]:
+                           file_uploader, authorized_users_cp, proxy_cp, statistics_cp, default_cp]:
                 self.add_handlers_from_plugin(module)
         self.run_handlers(self.pre_init_handlers, (self,))
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
@@ -625,6 +761,7 @@ class Cortex(object):
         self.run_handlers(self.post_start_handlers, (self,))
         Thread(target=self.lots_raise_loop, daemon=True).start()
         Thread(target=self.update_session_loop, daemon=True).start()
+        Thread(target=self.statistics_notification_loop, daemon=True).start()
         self.process_events()
 
     def start(self):

@@ -18,11 +18,17 @@ def CLEAR_STATE_BTN() -> K:
 
 
 def REFRESH_BTN() -> K:
-    return K().add(B(_("gl_refresh"), callback_data=CBT.UPDATE_PROFILE))
+    return K().row(
+        B("📊 " + _("stat_adv_stats_button"), callback_data=CBT.ADV_PROFILE_STATS),
+        B(_("gl_refresh"), callback_data=CBT.UPDATE_PROFILE)
+    )
 
-
-def BALANCE_REFRESH_BTN() -> K:
-    return K().add(B(_("gl_refresh"), callback_data=CBT.BALANCE_REFRESH))
+def ADV_PROFILE_STATS_BTN() -> K:
+    return K().row(
+        B(_("gl_back"), callback_data="profile_view"),
+        B(_("gl_configure"), callback_data=CBT.STATS_SETTINGS),
+        B(_("gl_refresh"), callback_data=CBT.ADV_PROFILE_STATS)
+    )
 
 
 def SETTINGS_SECTIONS(cortex_instance: "Cortex", user_id: int) -> K:
@@ -36,9 +42,6 @@ def SETTINGS_SECTIONS(cortex_instance: "Cortex", user_id: int) -> K:
     if user_role == "admin":
         kb.add(B(_("mm_global"), callback_data=f"{CBT.CATEGORY}:main")) \
           .add(B(_("mm_plugins"), callback_data=f"{CBT.PLUGINS_LIST}:0"))
-    
-    if user_role in ["admin", "manager"] and cortex_instance.MAIN_CFG["ManagerPermissions"].getboolean("can_view_balance", fallback=False if user_role == 'manager' else True):
-        kb.add(B(_("mm_balance"), callback_data=CBT.BALANCE_REFRESH))
 
     kb.add(B(_("mm_notifications"), callback_data=f"{CBT.CATEGORY}:tg")) \
       .add(B(_("gl_next"), callback_data=CBT.MAIN2)) \

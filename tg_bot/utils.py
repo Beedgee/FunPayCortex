@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/utils.py
+# START OF FILE FunPayCortex/tg_bot/utils.py
 
 """
 В данном модуле написаны инструменты, которыми пользуется Telegram бот.
@@ -301,29 +301,6 @@ def generate_profile_text(cortex_instance: Cortex) -> str:
 
 ⏱️ {_('gl_last_update')}: <code>{time.strftime('%H:%M:%S %d.%m.%Y', time.localtime(account.last_update))}</code>"""
 
-def generate_balance_text(cortex_instance: Cortex) -> str:
-    """
-    Генерирует текст с информацией о балансе аккаунта.
-    """
-    account = cortex_instance.account
-    balance = cortex_instance.balance
-    
-    return f"""💰 <b>{_("mm_balance")} «{escape(account.username)}»</b>
-
-🇷🇺 <b>RUB:</b>
-    <i>{_("acc_balance_available")}:</i> <code>{balance.available_rub}₽</code>
-    <i>Всего:</i> <code>{balance.total_rub}₽</code>
-
-🇺🇸 <b>USD:</b>
-    <i>{_("acc_balance_available")}:</i> <code>{balance.available_usd}$</code>
-    <i>Всего:</i> <code>{balance.total_usd}$</code>
-
-🇪🇺 <b>EUR:</b>
-    <i>{_("acc_balance_available")}:</i> <code>{balance.available_eur}€</code>
-    <i>Всего:</i> <code>{balance.total_eur}€</code>
-    
-⏱️ {_('gl_last_update')}: <code>{time.strftime('%H:%M:%S %d.%m.%Y', time.localtime(account.last_update))}</code>"""
-
 def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
     """
     Генерирует текст с информацией о лоте.
@@ -365,4 +342,51 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
 🗂️ <b>{_('ea_link_goods_file').replace('🔗 ','')}:</b> {file_info_text}
 
 ⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
+
+
+def generate_advanced_stats_text(cortex_instance: Cortex, stats: dict) -> str:
+    """
+    Генерирует текст с расширенной статистикой аккаунта.
+    """
+    account = cortex_instance.account
+    balance = cortex_instance.balance
+    
+    def format_price_dict(price_dict: dict) -> str:
+        if not price_dict:
+            return "0 ¤"
+        return ", ".join([f"{v:,.2f}".replace(",", " ") + f" {k}" for k, v in sorted(price_dict.items())])
+
+    def format_sales_tuple(sales_tuple: tuple) -> str:
+        count, price_dict = sales_tuple
+        return f"{count} ({format_price_dict(price_dict)})"
+
+    period_days = stats.get('parsing_period', 30)
+    
+    text = f"""📊 <b>Статистика аккаунта «{escape(account.username)}»</b>
+🆔 <b>ID:</b> <code>{account.id}</code>
+💰 <b>Баланс:</b> <code>{balance.total_rub:,.2f} ₽, {balance.total_usd:,.2f} $, {balance.total_eur:,.2f} €</code>
+🛒 <b>Незавершенных заказов:</b> <code>{account.active_sales}</code>
+
+<b>Доступно для вывода:</b>
+  ▫️ <i>Сейчас:</i> <code>{balance.available_rub:,.2f} ₽, {balance.available_usd:,.2f} $, {balance.available_eur:,.2f} €</code>
+  ▫️ <i>Через час:</i> <code>+{format_price_dict(stats['withdraw']['hour'])}</code>
+  ▫️ <i>Через день:</i> <code>+{format_price_dict(stats['withdraw']['day'])}</code>
+  ▫️ <i>Через 2 дня:</i> <code>+{format_price_dict(stats['withdraw']['two_days'])}</code>
+
+📈 <b>Товаров продано:</b>
+  ▫️ <i>За день:</i> <code>{format_sales_tuple(stats['sales']['day'])}</code>
+  ▫️ <i>За неделю:</i> <code>{format_sales_tuple(stats['sales']['week'])}</code>
+  ▫️ <i>За месяц:</i> <code>{format_sales_tuple(stats['sales']['month'])}</code>
+  ▫️ <i>За период ({period_days} дн.):</i> <code>{format_sales_tuple(stats['sales']['period'])}</code>
+
+📉 <b>Товаров возвращено:</b>
+  ▫️ <i>За день:</i> <code>{format_sales_tuple(stats['refunds']['day'])}</code>
+  ▫️ <i>За неделю:</i> <code>{format_sales_tuple(stats['refunds']['week'])}</code>
+  ▫️ <i>За месяц:</i> <code>{format_sales_tuple(stats['refunds']['month'])}</code>
+  ▫️ <i>За период ({period_days} дн.):</i> <code>{format_sales_tuple(stats['refunds']['period'])}</code>
+
+⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>
+"""
+    return text.replace(",", " ")
+
 # END OF FILE FunPayCortex/tg_bot/utils.py

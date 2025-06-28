@@ -697,11 +697,6 @@ offset: int - смещение списка прокси.
 proxy_id: int - ID proxy
 """
 
-BALANCE_REFRESH = "73"
-"""
-Callback для обновления информации о балансе.
-"""
-
 MANAGER_SETTINGS = "74"
 """
 Callback для открытия настроек менеджеров (ключ регистрации).
@@ -751,3 +746,10 @@ CONFIRM_EXIT_FROM_CP = "82"
 """
 Callback для подтверждения выхода из ПУ.
 """
+
+STATS_SETTINGS = "84"
+STATS_TOGGLE_NOTIF = "85"
+STATS_TOGGLE_CHAT = "86"
+STATS_SET_INTERVAL = "87"
+STATS_SET_PERIOD = "88"
+ADV_PROFILE_STATS = "83"

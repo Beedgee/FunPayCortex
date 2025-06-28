@@ -95,7 +95,7 @@ def load_main_config(config_path: str):
         },
         
         "ManagerPermissions": {
-            "can_view_balance": ["0", "1"],
+            "can_view_stats": ["0", "1"],
             "can_edit_ar": ["0", "1"],
             "can_edit_ad": ["0", "1"],
             "can_edit_templates": ["0", "1"]
@@ -158,6 +158,13 @@ def load_main_config(config_path: str):
             "watermark": "any+empty",
             "requestsDelay": [str(i) for i in range(1, 101)],
             "language": ["ru", "en", "uk"]
+        },
+
+        "Statistics": {
+            "enabled": ["0", "1"],
+            "notification_interval": "any",
+            "parsing_period": "any",
+            "notification_chats": "any+empty"
         }
     }
 
@@ -172,13 +179,18 @@ def load_main_config(config_path: str):
 
     for section_name in values:
         if section_name not in config.sections():
-            if section_name in ["Manager", "ManagerPermissions"]:
+            if section_name in ["Manager", "ManagerPermissions", "Statistics"]:
                 config.add_section(section_name)
                 if section_name == "ManagerPermissions":
-                    config.set("ManagerPermissions", "can_view_balance", "0")
+                    config.set("ManagerPermissions", "can_view_stats", "0")
                     config.set("ManagerPermissions", "can_edit_ar", "0")
                     config.set("ManagerPermissions", "can_edit_ad", "0")
                     config.set("ManagerPermissions", "can_edit_templates", "0")
+                elif section_name == "Statistics":
+                    config.set("Statistics", "enabled", "0")
+                    config.set("Statistics", "notification_interval", "24")
+                    config.set("Statistics", "parsing_period", "30")
+                    config.set("Statistics", "notification_chats", "")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
             else:
@@ -202,6 +214,10 @@ def load_main_config(config_path: str):
                     config.write(f)
             elif section_name == "Manager" and param_name == "registration_key" and param_name not in config[section_name]:
                 config.set("Manager", "registration_key", "")
+                with open(config_path, "w", encoding="utf-8") as f:
+                    config.write(f)
+            elif section_name == "ManagerPermissions" and param_name == "can_view_stats" and param_name not in config[section_name]:
+                config.set("ManagerPermissions", "can_view_stats", "0")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
             elif section_name == "Greetings" and param_name == "ignoreSystemMessages" and param_name not in config[
@@ -256,6 +272,13 @@ def load_main_config(config_path: str):
                     param_name not in config[section_name]:
                 config.set(section_name, "locale", "ru")
                 with open(config_path, "w", encoding="utf-8") as f:
+                    config.write(f)
+            elif section_name == "Statistics" and param_name == "enabled" and "enabled" not in config[section_name]:
+                 config.set("Statistics", "enabled", "0")
+                 config.set("Statistics", "notification_interval", "24")
+                 config.set("Statistics", "parsing_period", "30")
+                 config.set("Statistics", "notification_chats", "")
+                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
 
             # END OF UPDATE
@@ -361,3 +384,5 @@ def load_auto_delivery_config(config_path: str):
         if "$product" not in lot_response:
             raise ConfigParseError(config_path, lot_title, NoProductVarError())
     return config
+
+# END OF FILE FunPayCortex/Utils/config_loader.py

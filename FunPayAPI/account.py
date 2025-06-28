@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal, Any, Optional, IO
 
 import FunPayAPI.common.enums
 from FunPayAPI.common.utils import parse_currency, RegularExpressions
-from .types import PaymentMethod, CalcResult
+from .types import PaymentMethod, CalcResult, WithdrawHistory, WithdrawItem
 
 if TYPE_CHECKING:
     from .updater.runner import Runner
@@ -1045,17 +1045,16 @@ class Account:
 
         response = self.method("post", "lots/raise", headers, payload, raise_not_200=True)
         json_response = response.json()
-        logger.debug(f"Ответ FunPay (поднятие категорий): {json_response}.")  # locale
-        if not json_response.get("error") and not json_response.get("url"):
-            return True
-        elif json_response.get("url"):
-            raise exceptions.RaiseError(response, category, json_response.get("url"), 7200)
-        elif json_response.get("error") and json_response.get("msg") and \
-                any([i in json_response.get("msg") for i in ("Подождите ", "Please wait ", "Зачекайте ")]):
-            wait_time = utils.parse_wait_time(json_response.get("msg"))
-            raise exceptions.RaiseError(response, category, json_response.get("msg"), wait_time)
-        else:
-            raise exceptions.RaiseError(response, category, json_response.get("msg"), None)
+        logger.debug(f"Ответ FunPay (поднятие категорий): {json_response}.")
+
+        if json_response.get("error"):
+            error_message = json_response.get("msg")
+            if error_message and any(i in error_message for i in ("Подождите ", "Please wait ", "Зачекайте ")):
+                wait_time = utils.parse_wait_time(error_message)
+                raise exceptions.RaiseError(response, category, error_message, wait_time)
+            else:
+                raise exceptions.RaiseError(response, category, error_message, None)
+        return True
 
     def get_user(self, user_id: int, locale: Literal["ru", "en", "uk"] | None = None) -> types.UserProfile:
         """
@@ -1795,6 +1794,88 @@ class Account:
                 return price2 / price1, now_currency
             else:
                 return price1 / price2, now_currency
+                
+    def get_withdraw_history(self, locale: Literal["ru", "en", "uk"] | None = None) -> WithdrawHistory:
+        """
+        Получает историю вывода средств и информацию о доступных к выводу суммах.
+
+        :param locale: Язык для парсинга страницы.
+        :type locale: :obj:`Literal["ru", "en", "uk"]` or :obj:`None`
+
+        :return: Объект с историей вывода и доступными средствами.
+        :rtype: :class:`FunPayAPI.types.WithdrawHistory`
+        """
+        if not self.is_initiated:
+            raise exceptions.AccountNotInitiatedError()
+
+        response = self.method("get", "https://funpay.com/withdraw/history", {}, {}, raise_not_200=True, locale=locale)
+        html_response = response.content.decode()
+        parser = BeautifulSoup(html_response, "lxml")
+
+        self.__update_csrf_token(parser)
+
+        available_now = 0.0
+        currency = FunPayAPI.common.enums.Currency.UNKNOWN
+        
+        # Парсим доступные сейчас средства
+        available_block = parser.find("p", class_="text-primary")
+        if available_block and available_block.strong:
+            # "Доступно для вывода: 1 234.56 ₽"
+            match = re.search(r'([\d\s,.]+)\s*([₽$€])', available_block.strong.text)
+            if match:
+                available_now = float(match.group(1).replace(' ', '').replace(',', '.'))
+                currency_symbol = match.group(2)
+                currency = parse_currency(currency_symbol)
+
+        items = []
+        # Парсим таблицу с будущими поступлениями
+        table = parser.find("table", class_="table-list")
+        if table and table.find("tbody"):
+            rows = table.find("tbody").find_all("tr")
+            for row in rows:
+                cols = row.find_all("td")
+                if len(cols) == 3:
+                    date_text = cols[0].text.strip()
+                    amount_text = cols[1].text.strip()
+                    status_text = cols[2].text.strip()
+                    
+                    date_obj = None
+                    try:
+                        # "28 мая 2024, 15:47" - основной формат
+                        date_obj = datetime.strptime(date_text, '%d %b %Y, %H:%M')
+                    except ValueError:
+                        now = datetime.now()
+                        date_parts = date_text.replace(",", "").split()
+                        time_str = date_parts[1] if len(date_parts) > 1 else "00:00"
+                        
+                        # 'сегодня, 15:47' или 'завтра, 15:47'
+                        if date_parts[0] in utils.MONTHS: # "28 мая, 15:47" - формат без года
+                            try:
+                                day = int(date_parts[0])
+                                month = utils.MONTHS[date_parts[1]]
+                                time_obj = datetime.strptime(time_str, '%H:%M').time()
+                                date_obj = now.replace(month=month, day=day, hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
+                            except (ValueError, KeyError):
+                                date_obj = None
+                        elif date_parts[0] in ("сегодня", "сьогодні", "today"):
+                             time_obj = datetime.strptime(time_str, '%H:%M').time()
+                             date_obj = now.replace(hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
+                        elif date_parts[0] in ("завтра", "tomorrow"):
+                            time_obj = datetime.strptime(time_str, '%H:%M').time()
+                            date_obj = (now + timedelta(days=1)).replace(hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
+
+                    # "306.05 ₽"
+                    amount_match = re.search(r'([\d\s,.]+)\s*([₽$€])', amount_text)
+                    if amount_match:
+                        amount = float(amount_match.group(1).replace(' ', '').replace(',', '.'))
+                        item_currency_symbol = amount_match.group(2)
+                        item_currency = parse_currency(item_currency_symbol)
+                        if currency == FunPayAPI.common.enums.Currency.UNKNOWN:
+                            currency = item_currency
+                        
+                        items.append(WithdrawItem(date=date_obj, amount=amount, currency=item_currency, status=status_text))
+
+        return WithdrawHistory(available_now, currency, items)
 
     def get_category(self, category_id: int) -> types.Category | None:
         """

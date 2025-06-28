@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/bot.py
+# START OF FILE FunPayCortex/tg_bot/bot.py
 
 """
 В данном модуле написан Telegram бот.
@@ -63,7 +63,6 @@ class TGBot:
         self.commands = {
             "menu": "cmd_menu",
             "profile": "cmd_profile",
-            "balance": "cmd_balance",
             "restart": "cmd_restart",
             "check_updates": "cmd_check_updates",
             "update": "cmd_update",
@@ -269,35 +268,44 @@ class TGBot:
         """
         self.bot.send_message(m.chat.id, start_message, reply_markup=skb.SETTINGS_SECTIONS(self.cortex, m.from_user.id), disable_web_page_preview=True)
 
-
-    def send_profile(self, m: Message):
-        self.bot.send_message(m.chat.id, utils.generate_profile_text(self.cortex),
-                              reply_markup=skb.REFRESH_BTN())
-    
-    def send_balance(self, m: Message):
-        user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
-        if user_role not in ["admin", "manager"]:
-            return
+    def send_profile(self, m_or_c: Message | CallbackQuery):
+        chat_id = m_or_c.chat.id if isinstance(m_or_c, Message) else m_or_c.message.chat.id
         
-        if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_balance", fallback=False):
-            self.bot.send_message(m.chat.id, _("manager_permission_denied"))
+        user_role = utils.get_user_role(self.authorized_users, m_or_c.from_user.id)
+        if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats", fallback=False):
+            self.bot.send_message(chat_id, _("manager_permission_denied"))
             return
+            
+        text = utils.generate_profile_text(self.cortex)
+        kb = skb.REFRESH_BTN()
 
-        balance_text = utils.generate_balance_text(self.cortex)
-        self.bot.send_message(m.chat.id, balance_text, reply_markup=skb.BALANCE_REFRESH_BTN())
-    
-    def update_balance(self, c: CallbackQuery):
-        new_msg = self.bot.send_message(c.message.chat.id, _("updating_profile"))
+        if isinstance(m_or_c, Message):
+            self.bot.send_message(chat_id, text, reply_markup=kb)
+        else: # CallbackQuery
+            try:
+                self.bot.edit_message_text(text, chat_id, m_or_c.message.id, reply_markup=kb)
+            except telebot.apihelper.ApiTelegramException as e:
+                if "message is not modified" not in e.description:
+                    raise
+            self.bot.answer_callback_query(m_or_c.id)
+
+    def send_advanced_profile_stats(self, c: CallbackQuery):
+        """Отправляет расширенную статистику по аккаунту."""
+        user_role = utils.get_user_role(self.authorized_users, c.from_user.id)
+        if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats", fallback=False):
+            self.bot.answer_callback_query(c.id, _("manager_permission_denied"), show_alert=True)
+            return
+            
+        progress_msg = self.bot.send_message(c.message.chat.id, _("updating_profile"))
         try:
-            self.cortex.balance = self.cortex.get_balance()
-            self.bot.delete_message(new_msg.chat.id, new_msg.id)
-            self.bot.edit_message_text(utils.generate_balance_text(self.cortex), c.message.chat.id,
-                                       c.message.id, reply_markup=skb.BALANCE_REFRESH_BTN())
+            stats_data = self.cortex.generate_advanced_stats()
+            stats_text = utils.generate_advanced_stats_text(self.cortex, stats_data)
+            self.bot.edit_message_text(stats_text, progress_msg.chat.id, progress_msg.id,
+                                       reply_markup=skb.ADV_PROFILE_STATS_BTN())
         except Exception as e:
             self.bot.edit_message_text(_("profile_updating_error") + f"\nError: {str(e)[:100]}",
-                                       new_msg.chat.id, new_msg.id)
-            logger.error(f"Ошибка при обновлении баланса через TG: {e}")
-            logger.debug("TRACEBACK", exc_info=True)
+                                       progress_msg.chat.id, progress_msg.id)
+            logger.error(f"Ошибка при формировании расширенной статистики: {e}", exc_info=True)
         finally:
             self.bot.answer_callback_query(c.id)
 
@@ -935,6 +943,7 @@ class TGBot:
             "OrderConfirm": kb.order_confirm_reply_settings, "ReviewReply": kb.review_reply_settings,
             "Proxy": lambda ctx, offset_kb: kb.proxy(ctx, offset_kb, getattr(ctx.telegram, 'pr_dict', {})),
             "ManagerPermissions": kb.manager_permissions_settings,
+            "Statistics": lambda ctx: kb.statistics_settings(ctx, c.message.chat.id),
         }
         reply_markup_to_send = None
         if section_name == "Telegram":
@@ -945,7 +954,8 @@ class TGBot:
              pr_dict_for_kb = getattr(self.cortex.telegram, 'pr_dict', {})
              reply_markup_to_send = kb.proxy(self.cortex, offset_val, pr_dict_for_kb)
         elif section_name in section_keyboards_map:
-            reply_markup_to_send = section_keyboards_map[section_name](self.cortex)
+            kb_gen = section_keyboards_map[section_name]
+            reply_markup_to_send = kb_gen(self.cortex)
 
         if reply_markup_to_send:
             try:
@@ -1124,8 +1134,6 @@ class TGBot:
         self.msg_handler(self.run_file_handlers, content_types=["photo", "document"], func=lambda m: self.is_file_handler(m) and auth_filter(m))
         self.msg_handler(self.send_settings_menu, commands=["menu", "start"], func=auth_filter)
         self.msg_handler(self.send_profile, commands=["profile"], func=auth_filter)
-        self.msg_handler(self.send_balance, commands=["balance"], func=auth_filter)
-        self.cbq_handler(self.update_balance, lambda c: c.data == CBT.BALANCE_REFRESH and auth_cb_filter(c))
         self.msg_handler(self.act_change_cookie, commands=["change_cookie", "golden_key"], func=auth_filter)
         self.msg_handler(self.change_cookie, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY) and auth_filter(m))
         self.cbq_handler(self.update_profile, lambda c: c.data == CBT.UPDATE_PROFILE and auth_cb_filter(c))
@@ -1181,19 +1189,24 @@ class TGBot:
         self.cbq_handler(self.close_menu, lambda c: c.data == CBT.CLOSE_MENU and auth_cb_filter(c))
         self.cbq_handler(self.send_help_text, lambda c: c.data.startswith(f"{CBT.SEND_HELP}:") and auth_cb_filter(c))
         self.cbq_handler(self.delete_message_cb, lambda c: c.data == CBT.DELETE_MESSAGE and auth_cb_filter(c))
+        self.cbq_handler(self.send_advanced_profile_stats, lambda c: c.data == CBT.ADV_PROFILE_STATS and auth_cb_filter(c))
+        self.cbq_handler(lambda c: self.send_profile(c), func=lambda c: c.data == "profile_view" and auth_cb_filter(c))
 
 
     def send_notification(self, text: str | None, keyboard: K | None = None,
                           notification_type: str = utils.NotificationTypes.other, photo: bytes | None = None,
-                          pin: bool = False, exclude_chat_id: int | None = None):
+                          pin: bool = False, exclude_chat_id: int | None = None, chat_id: int | None = None):
         kwargs = {}
         if keyboard is not None:
             kwargs["reply_markup"] = keyboard
         to_delete_chats = []
 
-        active_notification_settings = self.notification_settings.copy()
+        if chat_id:
+            chats_to_notify = {str(chat_id): self.notification_settings.get(str(chat_id), {})}
+        else:
+            chats_to_notify = self.notification_settings.copy()
 
-        for chat_id_str, settings in active_notification_settings.items():
+        for chat_id_str, settings in chats_to_notify.items():
             if exclude_chat_id and str(exclude_chat_id) == chat_id_str:
                 continue
 
@@ -1366,3 +1379,5 @@ class TGBot:
     def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
+
+# END OF FILE FunPayCortex/tg_bot/bot.py

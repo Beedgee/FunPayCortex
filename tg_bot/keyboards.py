@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/keyboards.py
+# START OF FILE FunPayCortex/tg_bot/keyboards.py
 
 """
 Функции генерации клавиатур для суб-панелей управления.
@@ -399,7 +399,7 @@ def manager_permissions_settings(c: Cortex) -> K:
         return '🟢' if c.MAIN_CFG["ManagerPermissions"].getboolean(s, fallback=fallback) else '🔴'
 
     kb = K() \
-        .add(B(_("mp_can_view_balance", l("can_view_balance")), callback_data=f"{p}:can_view_balance")) \
+        .add(B(_("mp_can_view_stats", l("can_view_stats", fallback=True)), callback_data=f"{p}:can_view_stats")) \
         .add(B(_("mp_can_edit_ar", l("can_edit_ar")), callback_data=f"{p}:can_edit_ar")) \
         .add(B(_("mp_can_edit_ad", l("can_edit_ad")), callback_data=f"{p}:can_edit_ad")) \
         .add(B(_("mp_can_edit_templates", l("can_edit_templates")), callback_data=f"{p}:can_edit_templates")) \
@@ -843,3 +843,30 @@ def edit_plugin(c: Cortex, uuid: str, offset: int, ask_to_delete: bool = False):
 
 def LINKS_KB(language: None | str = None) -> K:
     return K()
+    
+    
+def statistics_settings(c: Cortex, chat_id: int) -> K:
+    """
+    Генерирует клавиатуру настроек статистики.
+    """
+    cfg = c.MAIN_CFG["Statistics"]
+    kb = K()
+
+    notif_enabled = cfg.getboolean("enabled", fallback=False)
+    notif_text = _("stat_notifications_button", bool_to_text(notif_enabled))
+    kb.add(B(notif_text, callback_data=f"{CBT.SWITCH}:Statistics:enabled"))
+    
+    chats_str = cfg.get("notification_chats", "")
+    chats_list = [c.strip() for c in chats_str.split(",") if c.strip()]
+    chat_notif_enabled = str(chat_id) in chats_list
+    chat_notif_text = _("stat_notif_for_chat_button", bool_to_text(chat_notif_enabled))
+    kb.add(B(chat_notif_text, callback_data=CBT.STATS_TOGGLE_CHAT))
+
+    interval_hours = cfg.getint("notification_interval", fallback=24)
+    kb.add(B(_("stat_interval_button", interval_hours), callback_data=CBT.STATS_SET_INTERVAL))
+
+    parsing_days = cfg.getint("parsing_period", fallback=30)
+    kb.add(B(_("stat_period_button", parsing_days), callback_data=CBT.STATS_SET_PERIOD))
+
+    kb.add(B(_("gl_back"), callback_data=CBT.ADV_PROFILE_STATS))
+    return kb

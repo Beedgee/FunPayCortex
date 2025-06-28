@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from cortex import Cortex
 
-from FunPayAPI.types import OrderShortcut, Order, Currency
+from FunPayAPI.types import OrderShortcut, Order, Currency, OrderStatuses
 from FunPayAPI import exceptions, utils as fp_utils
 from FunPayAPI.updater.events import *
 from FunPayAPI.common.enums import SubCategoryTypes
@@ -842,6 +842,29 @@ def send_bot_started_notification_handler(c: Cortex, *args):
             continue
 
 
+def track_order_confirmations_for_stats(c: Cortex, e: OrderStatusChangedEvent):
+    """
+    Отслеживает подтвержденные и возвращенные заказы для статистики.
+    """
+    order = e.order
+    # Если заказ закрыт (подтвержден)
+    if order.status == OrderStatuses.CLOSED:
+        # Проверяем, что это не мы сами подтвердили свою покупку
+        order_details = c.account.get_order(order.id)
+        if order_details and order_details.seller_id == c.account.id:
+            c.order_confirmations[order.id] = {
+                "time": int(time.time()),
+                "price": order.price,
+                "currency": str(order.currency)
+            }
+            c._save_order_confirmations()
+    # Если по заказу был возврат
+    elif order.status == OrderStatuses.REFUNDED:
+        if order.id in c.order_confirmations:
+            del c.order_confirmations[order.id]
+            c._save_order_confirmations()
+
+
 BIND_TO_INIT_MESSAGE = [save_init_chats_handler]
 
 BIND_TO_LAST_CHAT_MESSAGE_CHANGED = [old_log_msg_handler,
@@ -870,8 +893,11 @@ BIND_TO_NEW_ORDER = [log_new_order_handler, setup_event_attributes_handler,
                      send_new_order_notification_handler, deliver_product_handler,
                      update_lots_state_handler]
 
-BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirmed_notification_handler]
+BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirmed_notification_handler,
+                                track_order_confirmations_for_stats]
 
 BIND_TO_POST_DELIVERY = [send_delivery_notification_handler]
 
 BIND_TO_POST_START = [send_bot_started_notification_handler]
+
+# END OF FILE FunPayCortex/handlers.py

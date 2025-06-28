@@ -1285,4 +1285,26 @@ class CalcResult:
         """Процент комиссии."""
         return (self.commission_coefficient - 1) * 100
 
+class WithdrawItem:
+    """Описывает одну запись в истории вывода средств."""
+    def __init__(self, date: datetime.datetime | None, amount: float, currency: Currency, status: str):
+        self.date = date
+        """Дата и время поступления."""
+        self.amount = amount
+        """Сумма."""
+        self.currency = currency
+        """Валюта."""
+        self.status = status
+        """Статус (например, 'Ожидает')."""
+
+class WithdrawHistory:
+    """Описывает данные со страницы истории вывода."""
+    def __init__(self, available_now: float, currency: Currency, items: list[WithdrawItem]):
+        self.available_now = available_now
+        """Средства, доступные для вывода прямо сейчас."""
+        self.currency = currency
+        """Основная валюта аккаунта, определенная со страницы."""
+        self.items = items
+        """Список будущих или недавних поступлений."""
+
 # END OF FILE FunPayCortex/FunPayAPI/types.py
