@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/tg_bot/keyboards.py
-
 """
 Функции генерации клавиатур для суб-панелей управления.
 """
@@ -213,7 +211,8 @@ def authorized_users(c: Cortex, offset: int, current_user_id: int):
                                 len(sorted_users), CBT.AUTHORIZED_USERS)
     
     if user_role == "admin":
-        kb.row(B(_("mm_manager_settings"), callback_data=CBT.MANAGER_SETTINGS))
+        kb.row(B(_("mm_manager_settings"), callback_data=CBT.MANAGER_SETTINGS),
+               B(_("mm_manager_permissions"), callback_data=f"{CBT.CATEGORY}:mp"))
 
     kb.add(B(_("au_exit_cp"), callback_data=f"{CBT.EXIT_FROM_CP}:{current_user_id}:{offset}"))
     kb.add(B(_("gl_back"), callback_data=CBT.MAIN2))
@@ -395,11 +394,11 @@ def manager_permissions_settings(c: Cortex) -> K:
     """
     p = f"{CBT.SWITCH}:ManagerPermissions"
     
-    def l(s, fallback=False):
-        return '🟢' if c.MAIN_CFG["ManagerPermissions"].getboolean(s, fallback=fallback) else '🔴'
+    def l(s):
+        return '🟢' if c.MAIN_CFG["ManagerPermissions"].getboolean(s) else '🔴'
 
     kb = K() \
-        .add(B(_("mp_can_view_stats", l("can_view_stats", fallback=True)), callback_data=f"{p}:can_view_stats")) \
+        .add(B(_("mp_can_view_stats", l("can_view_stats")), callback_data=f"{p}:can_view_stats")) \
         .add(B(_("mp_can_edit_ar", l("can_edit_ar")), callback_data=f"{p}:can_edit_ar")) \
         .add(B(_("mp_can_edit_ad", l("can_edit_ad")), callback_data=f"{p}:can_edit_ad")) \
         .add(B(_("mp_can_edit_templates", l("can_edit_templates")), callback_data=f"{p}:can_edit_templates")) \
@@ -845,28 +844,38 @@ def LINKS_KB(language: None | str = None) -> K:
     return K()
     
     
-def statistics_settings(c: Cortex, chat_id: int) -> K:
+def statistics_menu(c: Cortex) -> K:
     """
-    Генерирует клавиатуру настроек статистики.
+    Генерирует клавиатуру для меню статистики.
     """
-    cfg = c.MAIN_CFG["Statistics"]
+    kb = K(row_width=2)
+    buttons = [
+        B("За день", callback_data=f"{CBT.STATS_MENU}:day"),
+        B("За неделю", callback_data=f"{CBT.STATS_MENU}:week"),
+        B("За месяц", callback_data=f"{CBT.STATS_MENU}:month"),
+        B("За все время", callback_data=f"{CBT.STATS_MENU}:all")
+    ]
+    kb.add(*buttons)
+    kb.row(
+        B(_("gl_back"), callback_data=CBT.MAIN),
+        B(_("gl_configure"), callback_data=f"{CBT.STATS_CONFIG_MENU}:main"),
+        B(_("gl_refresh"), callback_data=f"{CBT.STATS_MENU}:main")
+    )
+    return kb
+
+def statistics_config_menu(c: Cortex) -> K:
+    """
+    Генерирует клавиатуру для настроек статистики.
+    """
     kb = K()
+    report_interval = c.MAIN_CFG["Statistics"].getint("report_interval", 0)
+    analysis_period = c.MAIN_CFG["Statistics"].getint("analysis_period", 30)
 
-    notif_enabled = cfg.getboolean("enabled", fallback=False)
-    notif_text = _("stat_notifications_button", bool_to_text(notif_enabled))
-    kb.add(B(notif_text, callback_data=f"{CBT.SWITCH}:Statistics:enabled"))
-    
-    chats_str = cfg.get("notification_chats", "")
-    chats_list = [c.strip() for c in chats_str.split(",") if c.strip()]
-    chat_notif_enabled = str(chat_id) in chats_list
-    chat_notif_text = _("stat_notif_for_chat_button", bool_to_text(chat_notif_enabled))
-    kb.add(B(chat_notif_text, callback_data=CBT.STATS_TOGGLE_CHAT))
+    report_text = f"Авто-отчет: {'🟢' if report_interval > 0 else '🔴'} ({report_interval} ч.)"
+    kb.add(B(report_text, callback_data=f"{CBT.STATS_CONFIG_MENU}:set_interval"))
 
-    interval_hours = cfg.getint("notification_interval", fallback=24)
-    kb.add(B(_("stat_interval_button", interval_hours), callback_data=CBT.STATS_SET_INTERVAL))
+    period_text = f"Период анализа: {analysis_period} дн."
+    kb.add(B(period_text, callback_data=f"{CBT.STATS_CONFIG_MENU}:set_period"))
 
-    parsing_days = cfg.getint("parsing_period", fallback=30)
-    kb.add(B(_("stat_period_button", parsing_days), callback_data=CBT.STATS_SET_PERIOD))
-
-    kb.add(B(_("gl_back"), callback_data=CBT.ADV_PROFILE_STATS))
+    kb.add(B(_("gl_back"), callback_data=f"{CBT.STATS_MENU}:main"))
     return kb

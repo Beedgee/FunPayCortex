@@ -19,14 +19,14 @@ def CLEAR_STATE_BTN() -> K:
 
 def REFRESH_BTN() -> K:
     return K().row(
-        B("📊 " + _("stat_adv_stats_button"), callback_data=CBT.ADV_PROFILE_STATS),
+        B("📊 " + _("stat_adv_stats_button"), callback_data=f"{CBT.STATS_MENU}:main"),
         B(_("gl_refresh"), callback_data=CBT.UPDATE_PROFILE)
     )
 
 def ADV_PROFILE_STATS_BTN() -> K:
     return K().row(
-        B(_("gl_back"), callback_data="profile_view"),
-        B(_("gl_configure"), callback_data=CBT.STATS_SETTINGS),
+        B(_("gl_back"), callback_data=f"{CBT.STATS_MENU}:main"),
+        B(_("gl_configure"), callback_data=f"{CBT.STATS_CONFIG_MENU}:main"),
         B(_("gl_refresh"), callback_data=CBT.ADV_PROFILE_STATS)
     )
 
@@ -58,8 +58,7 @@ def SETTINGS_SECTIONS_2(cortex_instance: "Cortex", user_id: int) -> K:
         .add(B(_("mm_new_msg_view"), callback_data=f"{CBT.CATEGORY}:mv"))
 
     if user_role == "admin":
-        kb.add(B(_("mm_manager_permissions"), callback_data=f"{CBT.CATEGORY}:mp")) \
-          .add(B(_("mm_blacklist"), callback_data=f"{CBT.CATEGORY}:bl")) \
+        kb.add(B(_("mm_blacklist"), callback_data=f"{CBT.CATEGORY}:bl")) \
           .add(B(_("mm_configs"), callback_data=CBT.CONFIG_LOADER)) \
           .add(B(_("mm_authorized_users"), callback_data=f"{CBT.AUTHORIZED_USERS}:0")) \
           .add(B(_("mm_proxy"), callback_data=f"{CBT.PROXY}:0"))
@@ -94,3 +93,5 @@ def CONFIGS_UPLOADER() -> K:
         .add(B("📤 " + _("cfg_upload_ar"), callback_data="upload_auto_response_config")) \
         .add(B("📤 " + _("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
+
+# END OF FILE FunPayCortex/tg_bot/static_keyboards.py

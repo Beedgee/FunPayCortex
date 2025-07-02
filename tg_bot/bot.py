@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/bot.py
+# START OF FILE FunPayCortex-main/tg_bot/bot.py
 
 """
 В данном модуле написан Telegram бот.
@@ -62,7 +62,7 @@ class TGBot:
 
         self.commands = {
             "menu": "cmd_menu",
-            "profile": "cmd_profile",
+            "profile": "stat_adv_stats_button",
             "restart": "cmd_restart",
             "check_updates": "cmd_check_updates",
             "update": "cmd_update",
@@ -288,6 +288,22 @@ class TGBot:
                 if "message is not modified" not in e.description:
                     raise
             self.bot.answer_callback_query(m_or_c.id)
+
+    def send_statistics_menu(self, m: Message):
+        user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
+        if user_role == 'manager' and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats"):
+            self.bot.send_message(m.chat.id, _("manager_permission_denied"))
+            return
+        
+        try:
+            self.cortex.balance = self.cortex.get_balance()
+        except Exception as e:
+            logger.error(f"Не удалось обновить баланс для меню статистики: {e}")
+            self.bot.send_message(m.chat.id, _("gl_error_try_again"))
+            return
+
+        self.bot.send_message(m.chat.id, "📊 " + _("stat_adv_stats_button"),
+                              reply_markup=kb.statistics_menu(self.cortex))
 
     def send_advanced_profile_stats(self, c: CallbackQuery):
         """Отправляет расширенную статистику по аккаунту."""
@@ -1133,7 +1149,7 @@ class TGBot:
 
         self.msg_handler(self.run_file_handlers, content_types=["photo", "document"], func=lambda m: self.is_file_handler(m) and auth_filter(m))
         self.msg_handler(self.send_settings_menu, commands=["menu", "start"], func=auth_filter)
-        self.msg_handler(self.send_profile, commands=["profile"], func=auth_filter)
+        self.msg_handler(self.send_statistics_menu, commands=["profile"], func=auth_filter)
         self.msg_handler(self.act_change_cookie, commands=["change_cookie", "golden_key"], func=auth_filter)
         self.msg_handler(self.change_cookie, func=lambda m: self.check_state(m.chat.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY) and auth_filter(m))
         self.cbq_handler(self.update_profile, lambda c: c.data == CBT.UPDATE_PROFILE and auth_cb_filter(c))

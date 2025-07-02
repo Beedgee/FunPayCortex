@@ -123,32 +123,21 @@ def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEven
     else:
         obj = e.chat
         chat_id, chat_name, mtype, its_me, badge = obj.id, obj.name, obj.last_message_type, not obj.unread, None
+
+    # Проверяем, нужно ли приветствовать этого пользователя.
     if any([time.time() - c.old_users.get(chat_id, 0) < float(
             c.MAIN_CFG["Greetings"]["greetingsCooldown"]) * 24 * 60 * 60,
             its_me, mtype in (MessageTypes.DEAR_VENDORS, MessageTypes.ORDER_CONFIRMED_BY_ADMIN), badge is not None,
             (mtype is not MessageTypes.NON_SYSTEM and c.MAIN_CFG["Greetings"].getboolean("ignoreSystemMessages"))]):
         return
 
+    # Немедленно обновляем временную метку, чтобы предотвратить повторную отправку
+    c.old_users[chat_id] = int(time.time())
+    cortex_tools.cache_old_users(c.old_users)
+
     logger.info(_("log_sending_greetings", chat_name, chat_id))
     text = cortex_tools.format_msg_text(c.MAIN_CFG["Greetings"]["greetingsText"], obj)
     Thread(target=c.send_message, args=(chat_id, text, chat_name), daemon=True).start()
-
-
-def add_old_user_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
-    """
-    Добавляет пользователя в список написавших.
-    """
-    if not c.old_mode_enabled:
-        if isinstance(e, LastChatMessageChangedEvent):
-            return
-        chat_id, mtype = e.message.chat_id, e.message.type
-    else:
-        chat_id, mtype = e.chat.id, e.chat.last_message_type
-
-    if not c.MAIN_CFG["Greetings"].getboolean("sendGreetings") or mtype == MessageTypes.DEAR_VENDORS:
-        return
-    c.old_users[chat_id] = int(time.time())
-    cortex_tools.cache_old_users(c.old_users)
 
 
 def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
@@ -842,34 +831,10 @@ def send_bot_started_notification_handler(c: Cortex, *args):
             continue
 
 
-def track_order_confirmations_for_stats(c: Cortex, e: OrderStatusChangedEvent):
-    """
-    Отслеживает подтвержденные и возвращенные заказы для статистики.
-    """
-    order = e.order
-    # Если заказ закрыт (подтвержден)
-    if order.status == OrderStatuses.CLOSED:
-        # Проверяем, что это не мы сами подтвердили свою покупку
-        order_details = c.account.get_order(order.id)
-        if order_details and order_details.seller_id == c.account.id:
-            c.order_confirmations[order.id] = {
-                "time": int(time.time()),
-                "price": order.price,
-                "currency": str(order.currency)
-            }
-            c._save_order_confirmations()
-    # Если по заказу был возврат
-    elif order.status == OrderStatuses.REFUNDED:
-        if order.id in c.order_confirmations:
-            del c.order_confirmations[order.id]
-            c._save_order_confirmations()
-
-
 BIND_TO_INIT_MESSAGE = [save_init_chats_handler]
 
 BIND_TO_LAST_CHAT_MESSAGE_CHANGED = [old_log_msg_handler,
                                      greetings_handler,
-                                     add_old_user_handler,
                                      send_response_handler,
                                      process_review_handler,
                                      old_send_new_msg_notification_handler,
@@ -878,7 +843,6 @@ BIND_TO_LAST_CHAT_MESSAGE_CHANGED = [old_log_msg_handler,
 
 BIND_TO_NEW_MESSAGE = [log_msg_handler,
                        greetings_handler,
-                       add_old_user_handler,
                        send_response_handler,
                        process_review_handler,
                        send_new_msg_notification_handler,
@@ -893,8 +857,7 @@ BIND_TO_NEW_ORDER = [log_new_order_handler, setup_event_attributes_handler,
                      send_new_order_notification_handler, deliver_product_handler,
                      update_lots_state_handler]
 
-BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirmed_notification_handler,
-                                track_order_confirmations_for_stats]
+BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirmed_notification_handler]
 
 BIND_TO_POST_DELIVERY = [send_delivery_notification_handler]
 

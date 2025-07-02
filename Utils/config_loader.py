@@ -161,10 +161,8 @@ def load_main_config(config_path: str):
         },
 
         "Statistics": {
-            "enabled": ["0", "1"],
-            "notification_interval": "any",
-            "parsing_period": "any",
-            "notification_chats": "any+empty"
+            "report_interval": "any",
+            "analysis_period": "any",
         }
     }
 
@@ -187,10 +185,8 @@ def load_main_config(config_path: str):
                     config.set("ManagerPermissions", "can_edit_ad", "0")
                     config.set("ManagerPermissions", "can_edit_templates", "0")
                 elif section_name == "Statistics":
-                    config.set("Statistics", "enabled", "0")
-                    config.set("Statistics", "notification_interval", "24")
-                    config.set("Statistics", "parsing_period", "30")
-                    config.set("Statistics", "notification_chats", "")
+                    config.set("Statistics", "report_interval", "0")
+                    config.set("Statistics", "analysis_period", "30")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
             else:
@@ -273,12 +269,10 @@ def load_main_config(config_path: str):
                 config.set(section_name, "locale", "ru")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
-            elif section_name == "Statistics" and param_name == "enabled" and "enabled" not in config[section_name]:
-                 config.set("Statistics", "enabled", "0")
-                 config.set("Statistics", "notification_interval", "24")
-                 config.set("Statistics", "parsing_period", "30")
-                 config.set("Statistics", "notification_chats", "")
-                 with open(config_path, "w", encoding="utf-8") as f:
+            elif section_name == "Statistics" and "report_interval" not in config[section_name]:
+                config.set("Statistics", "report_interval", "0")
+                config.set("Statistics", "analysis_period", "30")
+                with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
 
             # END OF UPDATE

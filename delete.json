@@ -8,5 +8,6 @@
   "locales/eng.py",
   "setup.py",
   "linux_install.sh",
-  "Utils/cardinal_tools.py"
+  "Utils/cardinal_tools.py",
+  "storage/cache/sales_history.json"
 ]
