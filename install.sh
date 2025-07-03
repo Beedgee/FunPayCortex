@@ -9,13 +9,12 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}--- Запуск установки FunPay Cortex ---${NC}"
 
-# 1. Обновление пакетов Termux
+# 1. Обновление пакетов Termux с автоматическим решением конфликтов
 echo -e "\n${YELLOW}> Шаг 1/6: Обновление пакетов Termux...${NC}"
-pkg update -y && pkg upgrade -y
+pkg update -y && pkg upgrade -y -o Dpkg::Options::="--force-confnew"
 
 # 2. Установка необходимых зависимостей (Python, git и т.д.)
 echo -e "\n${YELLOW}> Шаг 2/6: Установка зависимостей (python, git, lxml)...${NC}"
-# lxml требует clang и libxml2-dev
 pkg install python git clang libxml2-dev libxslt-dev -y
 
 # 3. Клонирование репозитория
@@ -35,17 +34,14 @@ python -m venv venv
 
 # 5. Установка зависимостей Python из requirements.txt
 echo -e "\n${YELLOW}> Шаг 5/6: Установка зависимостей Python...${NC}"
-# Активируем venv для этого шага
 source venv/bin/activate
-# Устанавливаем lxml отдельно, если он вызывает проблемы
+# lxml и bcrypt требуют компиляции, лучше поставить их до requirements, чтобы ошибки были более очевидны
 pip install lxml bcrypt
-# Устанавливаем остальные зависимости
 pip install -r requirements.txt
-# Деактивируем venv, он нам больше не нужен в этом скрипте
 deactivate
 
 # 6. Создание скрипта для удобного запуска
-echo -e "\n${YELLOW}> Шаг 6/6: Создание скрипта для запуска (start.sh)...${NC}"
+echo -e "\n${YELLOW}> Шаг 6/6: Создание скрипта для запуска (start-cortex.sh)...${NC}"
 # Создаем файл start.sh в главной директории Termux (~)
 cat > ~/start-cortex.sh <<EOL
 #!/bin/bash
@@ -59,6 +55,6 @@ chmod +x ~/start-cortex.sh
 
 echo -e "\n${GREEN}--- Установка успешно завершена! ---${NC}"
 echo -e "Для первого запуска и настройки бота, введите в консоль:${YELLOW}"
-echo -e "cd FunPayCortex && source venv/bin/activate && python main.py${NC}"
+echo -e "cd ~/FunPayCortex && source venv/bin/activate && python main.py${NC}"
 echo -e "\nДля всех последующих запусков, просто используйте команду:${YELLOW}"
 echo -e "./start-cortex.sh${NC}"
