@@ -15,8 +15,8 @@ pkg update -y && pkg upgrade -y -o Dpkg::Options::="--force-confnew"
 
 # 2. Установка необходимых системных зависимостей
 echo -e "\n${YELLOW}> Шаг 2/6: Установка зависимостей (python, git, rust, ...)...${NC}"
-# Добавляем 'rust' для компиляции bcrypt
-pkg install python git clang libxml2 libxslt rust -y
+# Добавляем 'rust' для компиляции bcrypt и 'libjpeg-turbo' для Pillow
+pkg install python git clang libxml2 libxslt rust libjpeg-turbo -y
 
 # 3. Клонирование репозитория
 # Удаляем старую папку, если она существует, чтобы избежать конфликтов
@@ -36,7 +36,7 @@ python -m venv venv
 # 5. Установка зависимостей Python из requirements.txt
 echo -e "\n${YELLOW}> Шаг 5/6: Установка зависимостей Python...${NC}"
 source venv/bin/activate
-# Обновим pip на всякий случай, как советует лог ошибки
+# Обновим pip на всякий случай
 pip install --upgrade pip
 # Устанавливаем зависимости
 pip install -r requirements.txt
