@@ -13,9 +13,10 @@ echo -e "${GREEN}--- Запуск установки FunPay Cortex ---${NC}"
 echo -e "\n${YELLOW}> Шаг 1/6: Обновление пакетов Termux...${NC}"
 pkg update -y && pkg upgrade -y -o Dpkg::Options::="--force-confnew"
 
-# 2. Установка необходимых зависимостей (Python, git и т.д.)
-echo -e "\n${YELLOW}> Шаг 2/6: Установка зависимостей (python, git, lxml)...${NC}"
-pkg install python git clang libxml2-dev libxslt-dev -y
+# 2. Установка необходимых зависимостей
+echo -e "\n${YELLOW}> Шаг 2/6: Установка зависимостей (python, git, clang, libxml2, libxslt)...${NC}"
+# Убираем суффиксы -dev, так как в Termux они не используются
+pkg install python git clang libxml2 libxslt -y
 
 # 3. Клонирование репозитория
 # Удаляем старую папку, если она существует, чтобы избежать конфликтов
