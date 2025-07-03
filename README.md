@@ -1,11 +1,11 @@
 <!-- Open Graph / Twitter Card Meta -->
 <meta property="og:title" content="FunPay Cortex — Авто-Бот для FunPay ☄️" />
-<meta property="og:description" content="Мощный Telegram-бот для FunPay: автосдача, автоответы, автоподнятие, плагины. Экономьте время, управляйте онлайн. Установите и забудьте!" />
+<meta property="og:description" content="Мощный Telegram-бот для FunPay: автосдача, автоответы, автоподнятие, плагины. Экономьте время — управляйте ботом через Telegram и расширяйте функционал плагинами!" />
 <meta property="og:image" content="https://i.imgur.com/mU4Jum5.png" />
 <meta name="twitter:card" content="summary_large_image" />
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=800&color=36CA5C&vCenter=true&width=700&lines=%F0%9F%9A%80+FunPay+Cortex%3A+%D0%91%D0%BE%D1%82%2C+%D0%BA%D0%BE%D1%82%D0%BE%D1%80%D1%8B%D0%B9+%D0%B4%D0%B5%D0%BB%D0%B0%D0%B5%D1%82+%D0%B2%D1%81%D1%91!;%F0%9F%91%BD+%D0%90%D0%B2%D1%82%D0%BE%D0%B2%D1%8B%D0%B4%D0%B0%D1%87%D0%B0%2C+%D1%80%D0%B0%D1%81%D1%88%D0%B8%D1%80%D1%8F%D0%B5%D0%BC%D0%BE%D1%81%D1%82%D1%8C%2C+%D1%82%D0%B5%D0%BB%D0%B5%D0%B3%D1%80%D0%B0%D0%BC-%D1%83%D0%BF%D1%80%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5!+%F0%9F%9A%80" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=800&color=36CA5C&vCenter=true&width=700&lines=%F0%9F%9A%80+FunPay+Cortex%3A+%D0%91%D0%BE%D1%82%2C+%D0%BA%D0%BE%D1%82%D0%BE%D1%80%D1%8B%D0%B9+%D0%B4%D0%B5%D0%BB%D0%B0%D0%B5%D1%82+%D0%B2%D1%81%D1%91+%D0%B7%D0%B0+%D0%B2%D0%B0%D1%81!+%F0%9F%A7%A1" alt="FunPay Cortex Banner">
 </p>
 
 <p align="center">
@@ -23,15 +23,15 @@
 <p align="center">
   <a href="https://t.me/FunPayCortex"><img src="https://img.shields.io/badge/Telegram-%F0%9F%92%AC%20чат-blue?style=for-the-badge&logo=telegram" alt="Telegram Chat"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11%2B-yellow?style=for-the-badge&logo=python"></a>
-  <a href="https://github.com/Beedgee/FunPayCortex/stargazers"><img src="https://img.shields.io/github/stars/Beedgee/FunPayCortex?label=Stars&logo=github&color=36CA5C&style=for-the-badge" alt="GitHub stars"></a>
-  <a href="https://github.com/Beedgee/FunPayCortex/network"><img src="https://img.shields.io/github/forks/Beedgee/FunPayCortex?label=Forks&logo=github&color=blueviolet&style=for-the-badge" alt="GitHub forks"></a>
+  <a href="https://github.com/Beedgee/FunPayCortex/stargazers"><img src="https://img.shields.io/github/stars/Beedgee/FunPayCortex?label=Stars&logo=github&color=36CA5C&style=for-the-badge" alt="GitHub Stars"></a>
+  <a href="https://github.com/Beedgee/FunPayCortex/network"><img src="https://img.shields.io/github/forks/Beedgee/FunPayCortex?label=Forks&logo=github&color=blueviolet&style=for-the-badge" alt="GitHub Forks"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 ---
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFEEAD,FFB347,FFCC70,36CA5C,F9F871,FFD700&height=120&section=header&text=FunPay%20Cortex&fontSize=48&fontAlignY=55&desc=Авто-Бот%20для%20FunPay%20с%20Telegram%20и%20плагинами!&descAlignY=75&fontColor=222222" alt="banner">
+  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFEEAD,FFB347,FFCC70,36CA5C,F9F871,FFD700&height=120&section=header&text=FunPay%20Cortex&fontSize=48&fontAlignY=55&desc=Авто-Бот%20для%20FunPay%20на%20Python&descAlignY=75" alt="Capsule header">
 </p>
 
 ---
@@ -53,7 +53,7 @@
 
 ## 🚩 Быстрые ссылки
 
-| [Особенности](#-особенности) | [Установка](#-установка) | [Использование](#-использование) | [Демо](#-демо) | [Плагины](#-плагины) | [Поддержка](#-поддержка-и-связь) |
+| [Особенности](#-особенности) | [Установка](#-установка) | [Использование](#-использование) | [Демо](#-демо) | [Плагины](#-плагины) | [Поддержка](#-поддержка-и-связь) | [FAQ](#faq-и-лайфхаки) |
 
 ---
 
@@ -99,7 +99,7 @@
 
 | Язык | Библиотеки | ОС | Конфиг |
 |:----:|:----------:|:--:|:------:|
-| ![Python](https://img.shields.io/badge/-Python%203.11+-yellow?logo=python&style=flat) | pyTelegramBotAPI, Requests, BeautifulSoup4, lxml, psutil, bcrypt | ![Linux](https://img.shields.io/badge/-Linux-blue?logo=linux&style=flat) ![Windows](https://img.shields.io/badge/-Windows-0078d6?logo=windows&style=flat) ![Android](https://img.shields.io/badge/-Android-3DDC84?logo=android&style=flat) | INI (.cfg) |
+| ![Python](https://img.shields.io/badge/-Python%203.11+-yellow?logo=python&style=flat) | pyTelegramBotAPI, Requests, BeautifulSoup4, lxml, psutil, bcrypt | ![Linux](https://img.shields.io/badge/-Linux-green?logo=linux&style=flat) ![Windows](https://img.shields.io/badge/-Windows-blue?logo=windows&style=flat) ![Android](https://img.shields.io/badge/-Android-brightgreen?logo=android&style=flat) | YAML |
 
 ---
 
@@ -149,25 +149,32 @@
 <details>
 <summary><b>🤖 Android (Termux)</b></summary>
 
-1. <b>Установи Termux</b> (лучше из F-Droid).
-2. Открой Termux и выполни:
-    ```bash
-    pkg update -y && pkg install python git -y
-    git clone https://github.com/Beedgee/FunPayCortex.git
-    cd FunPayCortex
-    python -m venv venv
-    source venv/bin/activate
-    pip install -r requirements.txt
-    python main.py
-    ```
-3. <b>Следуй инструкциям в консоли и в Telegram-боте.</b>
-4. Для фоновой работы используй <code>tmux</code>:
-    ```bash
-    pkg install tmux -y
-    tmux new-session -s cortex
-    # Внутри: cd FunPayCortex && source venv/bin/activate && python main.py
-    # Для отсоединения: Ctrl+b, d
-    ```
+> **Внимание!**  
+> Все тесты были на Termux версией **0.118.3**  
+> Скачать рекомендуемую версию:  
+> [com.termux_1002.apk (Trashbox.ru)](https://trashbox.ru/files30/2107066/com.termux_1002.apk/#)
+
+1. После скачивания Termux введите команду:
+   ```shell
+   termux-change-repo
+   ```
+   - В появившихся окнах везде нажимайте **OK** и дождитесь завершения установки репозиториев.
+
+2. Установка FunPay Cortex:
+   ```shell
+   pkg install curl -y && curl -sL https://raw.githubusercontent.com/Beedgee/FunPayCortex/main/install.sh | bash
+   ```
+   - ⏳ Ожидайте окончания установки (примерно 10-25 минут).  
+   - ⚠️ Имейте в виду, что скорость зависит от устройства и интернета.
+
+3. Следуйте инструкции на экране.
+
+4. После первичной настройки (там, где golden key, Telegram bot и т.д.), для запуска бота введите:
+   ```shell
+   python main.py
+   ```
+   🎉 **Готово!** Теперь вы можете пользоваться FunPay Cortex прямо в Termux.
+
 </details>
 
 ---
@@ -183,7 +190,7 @@
 ## 🎥 Демо
 
 <p align="center">
-  <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWVxbDA3N2N3eGxjY2p4aGhnbzdjN2V0aGVzZzF0dGc0d2xjY2Z4bCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sIIhZliQ2k393wXyIC/giphy.gif" width="480" alt="FunPay Cortex Demo"/>
+  <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWVxbDA3N2N3eGxjY2p4aGhnbzdjN2V0aGVzZzF0dGc0d2xjY2Z4bCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sIIhZliQ2k393wXyIC/giphy.gif" width="480" alt="FunPay Cortex Demo">
 </p>
 
 <!--
@@ -260,5 +267,5 @@ MIT © Beedgee
 ---
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFB347,FFD700,FFFACD,ADFF2F,7CFC00,36CA5C&height=80&section=footer&text=FunPay%20Cortex%20%E2%80%94%20Ваша%20торговля%20на%20автопилоте!&fontSize=28&fontAlign=50&fontColor=202020" alt="footer">
+  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFB347,FFD700,FFFACD,ADFF2F,7CFC00,36CA5C&height=80&section=footer&text=FunPay%20Cortex%20%E2%80%94%20Ваша%20торговля%20на%20FunPay%20на%20автопилоте!&fontSize=24&fontAlign=50&fontColor=000000" alt="Capsule footer">
 </p>
