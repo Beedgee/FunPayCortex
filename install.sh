@@ -13,17 +13,18 @@ cd $HOME
 # ШАГ 1: Обновление пакетов и установка основных зависимостей
 echo "🔧 Обновление репозиториев и установка Python/Git..."
 pkg update -y && pkg upgrade -y
-pkg install python git -y
+pkg install -y python git
 
 # Иногда pip не ставится автоматически
 if ! command -v pip &> /dev/null; then
     echo "⚙️ Установка pip вручную..."
-    python -m ensurepip --upgrade
+    python -m ensurepip --upgrade || pkg install -y python-pip
 fi
 
 # ШАГ 2: Установка зависимостей для сборки C-расширений
 echo "🛠️ Установка зависимостей для сборки (clang, libffi, openssl, rust, wheel)..."
-pkg install clang python-dev libffi-dev openssl-dev rust -y
+pkg install -y clang libffi openssl rust
+
 pip install --upgrade wheel setuptools
 
 # ШАГ 3: Клонирование репозитория
