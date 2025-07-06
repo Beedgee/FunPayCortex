@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex/tg_bot/utils.py
-
 """
 В данном модуле написаны инструменты, которыми пользуется Telegram бот.
 """
@@ -18,11 +16,14 @@ import datetime
 import os.path
 import json
 import time
+import logging
 
 import Utils.cortex_tools
+from FunPayAPI.common.enums import OrderStatuses
 from tg_bot import CBT
 from locales.localizer import Localizer
 
+logger = logging.getLogger("TGBot")
 localizer = Localizer()
 _ = localizer.translate
 
@@ -287,15 +288,33 @@ def generate_profile_text(cortex_instance: Cortex) -> str:
                 balance_label_text_raw = parts[0].strip()
             break
     if not balance_label_text_raw or "Баланс" not in balance_label_text_raw:
-        balance_label_text_raw = "<b><i>" + _("mm_balance") + ":</i></b>"
+        balance_label_text_raw = "<b><i>" + "Баланс" + ":</i></b>"
 
+
+    # Расчет суммы ожидающих заказов
+    pending_sum = {}
+    pending_count = 0
+    try:
+        # Получаем актуальный список заказов вместо использования кэша
+        _, sales, _, _ = cortex_instance.account.get_sales(include_closed=False, include_refunded=False)
+        for order in sales:
+            if order.status == OrderStatuses.PAID:
+                pending_count += 1
+                currency_str = str(order.currency)
+                pending_sum[currency_str] = pending_sum.get(currency_str, 0) + order.price
+    except Exception as e:
+        logger.error(f"Не удалось получить заказы для /profile: {e}")
+
+    pending_sum_str = ", ".join([f"{v:,.2f} {k}" for k, v in pending_sum.items()]).replace(",", " ") or "0 ¤"
+    
+    # Текст для неподтвержденных заказов
+    unconfirmed_text = f"⏳ <b>Неподтвержденные заказы:</b> <code>{pending_count}</code> (на <code>{pending_sum_str}</code>)\n" if pending_count > 0 else ""
 
     return f"""📊 <b>{profile_header} «{escape(account.username)}»</b>
 
 🆔 <b>ID:</b> <code>{account.id}</code>
-🛒 <b>{active_orders_text}:</b> <code>{account.active_sales}</code>
-{balance_label_text_raw}
-    🇷🇺 <b>RUB:</b> <code>{balance.total_rub}₽</code> ({_('acc_balance_available')} <code>{balance.available_rub}₽</code>)
+{unconfirmed_text}{balance_label_text_raw}
+    🇷🇺 <b>RUB:</b> <code>{balance.total_rub:,.2f}₽</code> ({_('acc_balance_available')} <code>{balance.available_rub}₽</code>)
     🇺🇸 <b>USD:</b> <code>{balance.total_usd}$</code> ({_('acc_balance_available')} <code>{balance.available_usd}$</code>)
     🇪🇺 <b>EUR:</b> <code>{balance.total_eur}€</code> ({_('acc_balance_available')} <code>{balance.available_eur}€</code>)
 
@@ -388,5 +407,3 @@ def generate_advanced_stats_text(cortex_instance: Cortex, stats: dict) -> str:
 ⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>
 """
     return text.replace(",", " ")
-
-# END OF FILE FunPayCortex/tg_bot/utils.py

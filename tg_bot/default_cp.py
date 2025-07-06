@@ -1,3 +1,5 @@
+# Файл: FunPayCortex-main/tg_bot/default_cp.py
+
 # START OF FILE FunPayCortex/tg_bot/default_cp.py
 
 """
@@ -40,6 +42,6 @@ def init_default_cp(cortex_instance: Cortex, *args):
     tg.cbq_handler(default_callback_answer, lambda c: True)
 
 
-BIND_TO_PRE_INIT = [init_default_cp]
+BIND_TO_POST_INIT = [init_default_cp]
 
 # END OF FILE FunPayCortex/tg_bot/default_cp.py

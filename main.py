@@ -35,7 +35,7 @@ logo = r"""
      \/                      \/                        \/      \/                                             
 """
 
-VERSION = "1.1.16"
+VERSION = "1.1.16.1"
 
 Utils.cortex_tools.set_console_title(f"FunPay Cortex v{VERSION}")
 

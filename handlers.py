@@ -16,7 +16,7 @@ from FunPayAPI import exceptions, utils as fp_utils
 from FunPayAPI.updater.events import *
 from FunPayAPI.common.enums import SubCategoryTypes
 
-from tg_bot import utils, keyboards
+from tg_bot import utils, keyboards, statistics_cp, crm_cp
 from Utils import cortex_tools
 from locales.localizer import Localizer
 from threading import Thread
@@ -263,6 +263,29 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None:
         last_by_bot = i.message.by_bot
         last_by_vertex = i.message.by_vertex
         last_badge = i.message.badge
+
+    # Убеждаемся, что профиль клиента существует
+    if e.message.interlocutor_id and e.message.author_id == e.message.interlocutor_id:
+        crm_cp.get_or_create_customer(c, e.message.interlocutor_id, e.message.chat_name)
+
+    # Обогащение уведомления данными из CRM
+    if e.message.interlocutor_id and e.message.interlocutor_id in c.crm_data:
+        customer_data = c.crm_data[e.message.interlocutor_id]
+        purchase_count = len(customer_data.get("purchases", []))
+        refund_count = len(customer_data.get("refunds", []))
+        pending_count = len(customer_data.get("pending", []))
+        notes = customer_data.get("notes", "")
+
+        crm_info = f"\n\n<b><a href='https://funpay.com/users/{e.message.interlocutor_id}/'>Картотека клиента</a></b>\n"
+        crm_info += f"✅ Покупок: <code>{purchase_count}</code>"
+        if pending_count > 0:
+            crm_info += f" | ⏳ Ожидает: <code>{pending_count}</code>"
+        if refund_count > 0:
+            crm_info += f" | 💸 Возвратов: <code>{refund_count}</code>"
+        if notes:
+            crm_info += f"\n📝 Заметка: <i>{utils.escape(notes)}</i>"
+        text += crm_info
+
     kb = keyboards.reply(chat_id, chat_name, extend=True)
     Thread(target=c.telegram.send_notification, args=(text, kb, utils.NotificationTypes.new_message),
            daemon=True).start()
@@ -831,7 +854,8 @@ def send_bot_started_notification_handler(c: Cortex, *args):
             continue
 
 
-BIND_TO_INIT_MESSAGE = [save_init_chats_handler]
+BIND_TO_INIT_MESSAGE = [save_init_chats_handler,
+                       crm_cp.crm_initial_chat_hook]
 
 BIND_TO_LAST_CHAT_MESSAGE_CHANGED = [old_log_msg_handler,
                                      greetings_handler,
@@ -847,7 +871,8 @@ BIND_TO_NEW_MESSAGE = [log_msg_handler,
                        process_review_handler,
                        send_new_msg_notification_handler,
                        send_command_notification_handler,
-                       test_auto_delivery_handler]
+                       test_auto_delivery_handler,
+                       statistics_cp.withdrawal_forecast_hook]
 
 BIND_TO_POST_LOTS_RAISE = [send_categories_raised_notification_handler]
 
@@ -855,12 +880,13 @@ BIND_TO_ORDERS_LIST_CHANGED = [update_current_lots_handler, update_profile_lots_
 
 BIND_TO_NEW_ORDER = [log_new_order_handler, setup_event_attributes_handler,
                      send_new_order_notification_handler, deliver_product_handler,
-                     update_lots_state_handler]
+                     update_lots_state_handler,
+                     crm_cp.crm_new_order_hook]
 
-BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirmed_notification_handler]
+BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirmed_notification_handler,
+                                statistics_cp.order_status_hook, crm_cp.crm_order_status_hook]
 
 BIND_TO_POST_DELIVERY = [send_delivery_notification_handler]
 
 BIND_TO_POST_START = [send_bot_started_notification_handler]
-
 # END OF FILE FunPayCortex/handlers.py

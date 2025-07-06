@@ -2,7 +2,6 @@
 from __future__ import annotations
 import json
 import time
-import math
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
@@ -23,7 +22,7 @@ if TYPE_CHECKING:
     from cortex import Cortex
 
 localizer = Localizer()
-_ = localizer.translate
+_t = localizer.translate  # Используем _t для избежания конфликтов
 logger = logging.getLogger("FPC.statistics_cp")
 
 SALES_HISTORY_FILE = "storage/cache/sales_history.json"
@@ -65,14 +64,13 @@ def save_data(cortex: Cortex):
         json.dump(cortex.withdrawal_forecast, f, ensure_ascii=False, indent=2)
 
 # ФОНОВОЕ ОБНОВЛЕНИЕ
-def update_sales_history(cortex: Cortex):
+def update_sales_history(cortex: Cortex, is_initial_scan: bool = False):
     """
     Получает только новые продажи и добавляет их в историю.
     """
-    is_first_scan = not cortex.sales_history
     existing_order_ids = {sale['id'] for sale in cortex.sales_history}
     
-    if is_first_scan and list(cortex.telegram.authorized_users.keys()):
+    if is_initial_scan and cortex.telegram and list(cortex.telegram.authorized_users.keys()):
         cortex.telegram.bot.send_message(list(cortex.telegram.authorized_users.keys())[0],
                                          "📊 Началось первичное сканирование истории продаж. Это может занять некоторое время...")
 
@@ -98,20 +96,25 @@ def update_sales_history(cortex: Cortex):
 
     if new_sales:
         new_sales_dicts = [
-            {"id": s.id, "status": s.status.name, "price": s.price, "currency": str(s.currency), "timestamp": int(s.date.timestamp())}
+            {"id": s.id, "status": s.status.name, "price": s.price, "currency": str(s.currency), "timestamp": int(s.date.timestamp()), "description": s.description}
             for s in reversed(new_sales) # Добавляем в правильном хронологическом порядке
         ]
         cortex.sales_history = new_sales_dicts + cortex.sales_history
         save_data(cortex)
     
-    if is_first_scan and list(cortex.telegram.authorized_users.keys()):
+    if is_initial_scan and cortex.telegram and list(cortex.telegram.authorized_users.keys()):
         cortex.telegram.bot.send_message(list(cortex.telegram.authorized_users.keys())[0],
                                          f"✅ Сканирование истории продаж завершено. Загружено {len(cortex.sales_history)} заказов.")
 
 
 def periodic_sales_update(cortex: Cortex):
     load_data(cortex)
-    update_sales_history(cortex) # Первое обновление при запуске
+    
+    if not cortex.initial_scan_complete:
+        update_sales_history(cortex, is_initial_scan=True)
+        cortex.initial_scan_complete = True
+    else:
+        update_sales_history(cortex)
     
     report_interval_hours = cortex.MAIN_CFG["Statistics"].getint("report_interval", 0)
     if report_interval_hours <= 0:
@@ -140,7 +143,8 @@ def periodic_sales_update(cortex: Cortex):
 def calculate_stats(sales_history: list, period_days: int | None):
     stats = {
         "sales_count": 0, "sales_sum": {},
-        "refund_count": 0, "refund_sum": {}
+        "refund_count": 0, "refund_sum": {},
+        "sold_items": {}
     }
     now = datetime.now()
     
@@ -156,6 +160,9 @@ def calculate_stats(sales_history: list, period_days: int | None):
         if sale["status"] == OrderStatuses.CLOSED.name:
             stats["sales_count"] += 1
             stats["sales_sum"][currency] = stats["sales_sum"].get(currency, 0) + price
+            description = sale.get("description")
+            if description:
+                stats["sold_items"][description] = stats["sold_items"].get(description, 0) + 1
         elif sale["status"] == OrderStatuses.REFUNDED.name:
             stats["refund_count"] += 1
             stats["refund_sum"][currency] = stats["refund_sum"].get(currency, 0) + price
@@ -189,6 +196,32 @@ def format_stats_message(cortex: Cortex, period_name: str, stats: dict) -> str:
             
     if modified:
         save_data(cortex)
+    
+    # Расчет суммы ожидающих заказов
+    pending_sum = {}
+    pending_count = 0
+    try:
+        # Получаем актуальный список заказов
+        next_id_unused, sales, locale_unused, subcs_unused = cortex.account.get_sales(include_closed=False, include_refunded=False)
+        for order in sales:
+            if order.status == OrderStatuses.PAID:
+                pending_count += 1
+                currency_str = str(order.currency)
+                pending_sum[currency_str] = pending_sum.get(currency_str, 0) + order.price
+    except Exception as e:
+        logger.error(f"Не удалось получить заказы для статистики: {e}")
+
+    pending_sum_str = format_price_summary(pending_sum)
+    unconfirmed_text = f"⏳ <b><u>Неподтвержденные:</u></b> {pending_count} шт. (на {pending_sum_str})\n\n" if pending_count > 0 else ""
+
+    # Топ-5 продаваемых товаров
+    top_items_text = ""
+    if stats.get("sold_items"):
+        sorted_items = sorted(stats["sold_items"].items(), key=lambda item: item[1], reverse=True)
+        top_5 = sorted_items[:5]
+        if top_5:
+            top_items_list = [f"  ▫️ <i>{utils.escape(item_name)}</i> - <code>{count} шт.</code>" for item_name, count in top_5]
+            top_items_text = "\n\n⭐ <b><u>Топ продаж:</u></b>\n" + "\n".join(top_items_list)
 
     return f"""
 📊 <b>Статистика за {period_name}</b>
@@ -197,7 +230,7 @@ def format_stats_message(cortex: Cortex, period_name: str, stats: dict) -> str:
 - <b>Баланс:</b> <code>{cortex.balance.total_rub:,.2f} ₽, {cortex.balance.total_usd:,.2f} $, {cortex.balance.total_eur:,.2f} €</code>
 - <b>К выводу:</b> <code>{cortex.balance.available_rub:,.2f} ₽, {cortex.balance.available_usd:,.2f} $, {cortex.balance.available_eur:,.2f} €</code>
 
-⏳ <b><u>Прогноз поступлений:</u></b>
+{unconfirmed_text}⏳ <b><u>Прогноз поступлений:</u></b>
 - <b>~ через час:</b> +{format_price_summary(forecast['hour'])}
 - <b>~ через день:</b> +{format_price_summary(forecast['day'])}
 - <b>~ через 2 дня:</b> +{format_price_summary(forecast['2day'])}
@@ -209,6 +242,9 @@ def format_stats_message(cortex: Cortex, period_name: str, stats: dict) -> str:
 📉 <b><u>Возвраты:</u></b>
 - <b>Количество:</b> <code>{stats['refund_count']} шт.</code>
 - <b>Сумма:</b> {format_price_summary(stats['refund_sum'])}
+{top_items_text}
+
+⏱️ {_t('gl_last_update')}: <code>{datetime.now().strftime('%H:%M:%S')}</code>
     """.replace(",", " ")
 
 # ОБРАБОТЧИКИ TELEGRAM
@@ -219,7 +255,7 @@ def init_statistics_cp(cortex: Cortex, *args):
     def open_statistics_menu(c: CallbackQuery):
         user_role = utils.get_user_role(tg.authorized_users, c.from_user.id)
         if user_role == 'manager' and not cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats"):
-            bot.answer_callback_query(c.id, _("admin_only_command"), show_alert=True)
+            bot.answer_callback_query(c.id, _t("admin_only_command"), show_alert=True)
             return
 
         period_key = c.data.split(":")[1]

@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex-main/tg_bot/bot.py
-
 """
 В данном модуле написан Telegram бот.
 """
@@ -28,7 +26,7 @@ import requests
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery, BotCommand, \
     InputFile
-from tg_bot import utils, static_keyboards as skb, keyboards as kb, CBT
+from tg_bot import utils, static_keyboards as skb, keyboards as kb, CBT, crm_cp
 from Utils import cortex_tools, updater
 from locales.localizer import Localizer
 
@@ -82,6 +80,7 @@ class TGBot:
             "del_logs": "cmd_del_logs",
             "power_off": "cmd_power_off",
             "watermark": "cmd_watermark",
+            "note": "cmd_note",
         }
         self.__default_notification_settings = {
             utils.NotificationTypes.ad: 1,
@@ -270,24 +269,35 @@ class TGBot:
 
     def send_profile(self, m_or_c: Message | CallbackQuery):
         chat_id = m_or_c.chat.id if isinstance(m_or_c, Message) else m_or_c.message.chat.id
-        
+
         user_role = utils.get_user_role(self.authorized_users, m_or_c.from_user.id)
         if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats", fallback=False):
             self.bot.send_message(chat_id, _("manager_permission_denied"))
             return
-            
+
+        # Принудительно обновляем сессию для получения актуальных данных
+        try:
+            self.cortex.update_session()
+        except Exception as e:
+            logger.error(f"Не удалось обновить сессию для /profile: {e}")
+            self.bot.send_message(chat_id, _("profile_updating_error"))
+            if isinstance(m_or_c, CallbackQuery):
+                self.bot.answer_callback_query(m_or_c.id)
+            return
+
         text = utils.generate_profile_text(self.cortex)
         kb = skb.REFRESH_BTN()
 
         if isinstance(m_or_c, Message):
             self.bot.send_message(chat_id, text, reply_markup=kb)
-        else: # CallbackQuery
+        else:  # CallbackQuery
             try:
                 self.bot.edit_message_text(text, chat_id, m_or_c.message.id, reply_markup=kb)
             except telebot.apihelper.ApiTelegramException as e:
                 if "message is not modified" not in e.description:
                     raise
             self.bot.answer_callback_query(m_or_c.id)
+
 
     def send_statistics_menu(self, m: Message):
         user_role = utils.get_user_role(self.authorized_users, m.from_user.id)
@@ -378,8 +388,12 @@ class TGBot:
             self.cortex.account.get()
             self.cortex.balance = self.cortex.get_balance()
             self.bot.delete_message(new_msg.chat.id, new_msg.id)
-            self.bot.edit_message_text(utils.generate_profile_text(self.cortex), c.message.chat.id,
-                                   c.message.id, reply_markup=skb.REFRESH_BTN())
+            try:
+                self.bot.edit_message_text(utils.generate_profile_text(self.cortex), c.message.chat.id,
+                                       c.message.id, reply_markup=skb.REFRESH_BTN())
+            except ApiTelegramException as e:
+                if "message is not modified" not in e.description:
+                    raise
         except Exception as e:
             self.bot.edit_message_text(_("profile_updating_error") + f"\nError: {str(e)[:100]}", new_msg.chat.id, new_msg.id)
             logger.error(f"Ошибка при обновлении профиля через TG: {e}")
@@ -621,7 +635,11 @@ class TGBot:
         self.bot.send_message(m.chat.id, _("power_off_0"), reply_markup=kb.power_off(self.cortex.instance_id, 0))
 
     def cancel_power_off(self, c: CallbackQuery):
-        self.bot.edit_message_text(_("power_off_cancelled"), c.message.chat.id, c.message.id)
+        try:
+            self.bot.edit_message_text(_("power_off_cancelled"), c.message.chat.id, c.message.id)
+        except ApiTelegramException as e:
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(c.id)
 
     def power_off(self, c: CallbackQuery):
@@ -629,16 +647,28 @@ class TGBot:
         current_stage = int(split_data[1])
         instance_id_from_cb = int(split_data[2])
         if instance_id_from_cb != self.cortex.instance_id:
-            self.bot.edit_message_text(_("power_off_error"), c.message.chat.id, c.message.id)
+            try:
+                self.bot.edit_message_text(_("power_off_error"), c.message.chat.id, c.message.id)
+            except ApiTelegramException as e:
+                if "message is not modified" not in e.description:
+                    raise
             self.bot.answer_callback_query(c.id)
             return
         if current_stage == 6:
-            self.bot.edit_message_text(_("power_off_6"), c.message.chat.id, c.message.id)
+            try:
+                self.bot.edit_message_text(_("power_off_6"), c.message.chat.id, c.message.id)
+            except ApiTelegramException as e:
+                if "message is not modified" not in e.description:
+                    raise
             self.bot.answer_callback_query(c.id)
             cortex_tools.shut_down()
             return
-        self.bot.edit_message_text(_(f"power_off_{current_stage}"), c.message.chat.id, c.message.id,
-                                   reply_markup=kb.power_off(instance_id_from_cb, current_stage))
+        try:
+            self.bot.edit_message_text(_(f"power_off_{current_stage}"), c.message.chat.id, c.message.id,
+                                       reply_markup=kb.power_off(instance_id_from_cb, current_stage))
+        except ApiTelegramException as e:
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(c.id)
 
     def act_send_funpay_message(self, c: CallbackQuery):
@@ -853,14 +883,22 @@ class TGBot:
         split_data = call.data.split(":")
         order_id, node_id, username = split_data[1], int(split_data[2]), split_data[3]
         refund_confirm_keyboard = kb.new_order(order_id, username, node_id, confirmation=True)
-        self.bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=refund_confirm_keyboard)
+        try:
+            self.bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=refund_confirm_keyboard)
+        except ApiTelegramException as e:
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(call.id)
 
     def cancel_refund(self, call: CallbackQuery):
         split_data = call.data.split(":")
         order_id, node_id, username = split_data[1], int(split_data[2]), split_data[3]
         order_keyboard = kb.new_order(order_id, username, node_id)
-        self.bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=order_keyboard)
+        try:
+            self.bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=order_keyboard)
+        except ApiTelegramException as e:
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(call.id)
 
     def refund(self, c: CallbackQuery):
@@ -902,7 +940,7 @@ class TGBot:
         except ApiTelegramException as tg_api_err_kb:
             if tg_api_err_kb.error_code == 400 and "message to edit not found" in tg_api_err_kb.description.lower():
                 logger.warning(f"Не удалось обновить клавиатуру для заказа {order_id}: исходное сообщение не найдено.")
-            else:
+            elif "message is not modified" not in tg_api_err_kb.description:
                 logger.warning(f"Не удалось обновить клавиатуру для заказа {order_id}: {tg_api_err_kb}")
         self.bot.answer_callback_query(c.id)
 
@@ -921,24 +959,32 @@ class TGBot:
 
     def open_cp(self, c: CallbackQuery):
         desc_text = _("desc_main")
-        if c.message.content_type == 'text':
-            self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
-                                   reply_markup=skb.SETTINGS_SECTIONS(self.cortex, c.from_user.id))
-        else:
-            try: self.bot.delete_message(c.message.chat.id, c.message.id)
-            except: pass
-            self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS(self.cortex, c.from_user.id))
+        try:
+            if c.message.content_type == 'text':
+                self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
+                                       reply_markup=skb.SETTINGS_SECTIONS(self.cortex, c.from_user.id))
+            else:
+                try: self.bot.delete_message(c.message.chat.id, c.message.id)
+                except: pass
+                self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS(self.cortex, c.from_user.id))
+        except ApiTelegramException as e:
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(c.id)
 
     def open_cp2(self, c: CallbackQuery):
         desc_text = _("desc_main")
-        if c.message.content_type == 'text':
-            self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
-                                   reply_markup=skb.SETTINGS_SECTIONS_2(self.cortex, c.from_user.id))
-        else:
-            try: self.bot.delete_message(c.message.chat.id, c.message.id)
-            except: pass
-            self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS_2(self.cortex, c.from_user.id))
+        try:
+            if c.message.content_type == 'text':
+                self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id,
+                                       reply_markup=skb.SETTINGS_SECTIONS_2(self.cortex, c.from_user.id))
+            else:
+                try: self.bot.delete_message(c.message.chat.id, c.message.id)
+                except: pass
+                self.bot.send_message(c.message.chat.id, desc_text, reply_markup=skb.SETTINGS_SECTIONS_2(self.cortex, c.from_user.id))
+        except ApiTelegramException as e:
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(c.id)
 
 
@@ -960,6 +1006,7 @@ class TGBot:
             "Proxy": lambda ctx, offset_kb: kb.proxy(ctx, offset_kb, getattr(ctx.telegram, 'pr_dict', {})),
             "ManagerPermissions": kb.manager_permissions_settings,
             "Statistics": lambda ctx: kb.statistics_settings(ctx, c.message.chat.id),
+            "OrderControl": kb.order_control_settings,
         }
         reply_markup_to_send = None
         if section_name == "Telegram":
@@ -1018,6 +1065,11 @@ class TGBot:
         if section_key in admin_only_sections and user_role != "admin":
             self.bot.answer_callback_query(c.id, _("admin_only_command"), show_alert=True)
             return
+        
+        manager_only_sections = ["orc"]
+        if section_key in manager_only_sections and user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_control_orders", False):
+            self.bot.answer_callback_query(c.id, _("manager_permission_denied"), show_alert=True)
+            return
 
         sections_map = {
             "lang": (_("desc_lang"), kb.language_settings, [self.cortex]),
@@ -1032,18 +1084,23 @@ class TGBot:
                    kb.greeting_settings, [self.cortex]),
             "oc": (_("desc_oc", utils.escape(self.cortex.MAIN_CFG['OrderConfirm']['replyText'])),
                    kb.order_confirm_reply_settings, [self.cortex]),
+            "orc": (_("oc_menu_desc"), kb.order_control_settings, [self.cortex]),
             "au": (_("desc_au"), lambda c_instance, o: kb.authorized_users(c_instance, o, user_id), [self.cortex, 0]),
             "mp": (_("desc_mp"), kb.manager_permissions_settings, [self.cortex])
         }
         current_section_data = sections_map.get(section_key)
         if current_section_data:
             desc_text, kb_generator, kb_args = current_section_data
-            if c.message.content_type == 'text':
-                self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id, reply_markup=kb_generator(*kb_args))
-            else:
-                try: self.bot.delete_message(c.message.chat.id, c.message.id)
-                except: pass
-                self.bot.send_message(c.message.chat.id, desc_text, reply_markup=kb_generator(*kb_args))
+            try:
+                if c.message.content_type == 'text':
+                    self.bot.edit_message_text(desc_text, c.message.chat.id, c.message.id, reply_markup=kb_generator(*kb_args))
+                else:
+                    try: self.bot.delete_message(c.message.chat.id, c.message.id)
+                    except: pass
+                    self.bot.send_message(c.message.chat.id, desc_text, reply_markup=kb_generator(*kb_args))
+            except ApiTelegramException as e:
+                if "message is not modified" not in e.description:
+                    raise
         else:
             self.bot.answer_callback_query(c.id, _("unknown_action"), show_alert=True)
             return
@@ -1128,6 +1185,35 @@ class TGBot:
         except ApiTelegramException:
             self.bot.answer_callback_query(c.id)
 
+    # ==================== CRM ====================
+    def act_add_note(self, m: Message):
+        """Активирует режим добавления заметки к клиенту."""
+        result = self.bot.send_message(m.chat.id, _("crm_prompt_add_note"), reply_markup=skb.CLEAR_STATE_BTN())
+        self.set_state(m.chat.id, result.id, m.from_user.id, "add_note")
+
+    def add_note(self, m: Message):
+        """Добавляет заметку к клиенту."""
+        self.clear_state(m.chat.id, m.from_user.id, True)
+        parts = m.text.split(maxsplit=1)
+        if len(parts) < 2:
+            self.bot.reply_to(m, _("crm_err_note_format"))
+            return
+        
+        username, note_text = parts
+        customer_id = None
+        for uid, data in self.cortex.crm_data.items():
+            if data.get("username") == username:
+                customer_id = uid
+                break
+        
+        if customer_id is None:
+            self.bot.reply_to(m, _("crm_err_customer_not_found", username=utils.escape(username)))
+            return
+
+        self.cortex.crm_data[customer_id]["notes"] = note_text
+        crm_cp.save_crm_data(self.cortex)
+        self.bot.reply_to(m, _("crm_success_note_added", username=utils.escape(username)))
+
 
     def __register_handlers(self):
         self.mdw_handler(self.setup_chat_notifications, update_types=['message'])
@@ -1182,6 +1268,9 @@ class TGBot:
         self.msg_handler(self.restart_cortex, commands=["restart"], func=auth_filter)
         self.msg_handler(self.ask_power_off, commands=["power_off"], func=auth_filter)
         self.msg_handler(self.send_announcements_kb, commands=["announcements"], func=auth_filter)
+        self.msg_handler(self.act_add_note, commands=["note"], func=auth_filter)
+        self.msg_handler(self.add_note, func=lambda m: self.check_state(m.chat.id, m.from_user.id, "add_note") and auth_filter(m))
+
         self.cbq_handler(self.send_review_reply_text, lambda c: c.data.startswith(f"{CBT.SEND_REVIEW_REPLY_TEXT}:") and auth_cb_filter(c))
         self.cbq_handler(self.act_send_funpay_message, lambda c: c.data.startswith(f"{CBT.SEND_FP_MESSAGE}:") and auth_cb_filter(c))
         self.cbq_handler(self.open_reply_menu, lambda c: c.data.startswith(f"{CBT.BACK_TO_REPLY_KB}:") and auth_cb_filter(c))
@@ -1395,5 +1484,3 @@ class TGBot:
     def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
-
-# END OF FILE FunPayCortex/tg_bot/bot.py

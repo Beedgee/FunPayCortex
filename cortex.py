@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from configparser import ConfigParser
 
 from tg_bot import auto_response_cp, config_loader_cp, auto_delivery_cp, templates_cp, plugins_cp, file_uploader, \
-    authorized_users_cp, proxy_cp, default_cp, statistics_cp
+    authorized_users_cp, proxy_cp, default_cp, statistics_cp, crm_cp, order_control_cp
 from types import ModuleType
 import Utils.exceptions
 from uuid import UUID
@@ -118,6 +118,7 @@ class Cortex(object):
         self.start_time = int(time.time())
         self.balance: FunPayAPI.types.Balance | None = None
         self.sales_history = []
+        self.initial_scan_complete = False
         self.withdrawal_forecast = {}
         self.base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
         self.raise_time = {}
@@ -170,6 +171,7 @@ class Cortex(object):
         self.plugins: dict[str, PluginData] = {}
         self.disabled_plugins = cortex_tools.load_disabled_plugins()
         self.order_confirmations = {}
+        self.crm_data = {}
         self._load_order_confirmations()
 
     def _load_order_confirmations(self):
@@ -613,7 +615,7 @@ class Cortex(object):
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
             self.__init_telegram()
             for module in [auto_response_cp, auto_delivery_cp, config_loader_cp, templates_cp, plugins_cp,
-                           file_uploader, authorized_users_cp, proxy_cp, statistics_cp, default_cp]:
+                           file_uploader, authorized_users_cp, proxy_cp, statistics_cp, crm_cp, order_control_cp, default_cp]:
                 self.add_handlers_from_plugin(module)
         self.run_handlers(self.pre_init_handlers, (self,))
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
@@ -650,6 +652,7 @@ class Cortex(object):
         Thread(target=self.lots_raise_loop, daemon=True).start()
         Thread(target=self.update_session_loop, daemon=True).start()
         Thread(target=statistics_cp.periodic_sales_update, args=(self,), daemon=True).start()
+        Thread(target=order_control_cp.periodic_order_check, args=(self,), daemon=True).start()
         self.process_events()
 
     def start(self):

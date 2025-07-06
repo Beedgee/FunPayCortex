@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex-main/first_setup.py
-
 """
 В данном модуле написана подпрограмма первичной настройки FunPayCortex.
 """
@@ -94,6 +92,13 @@ default_config = {
         "watermark": "🧠 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🤖",
         "requestsDelay": "4",
         "language": "ru"
+    },
+
+    "OrderControl": {
+        "notify_pending_execution": "1",
+        "pending_execution_threshold_m": "60",
+        "notify_pending_confirmation": "1",
+        "pending_confirmation_threshold_h": "24"
     }
 }
 
@@ -242,5 +247,3 @@ def first_setup():
         config.write(f)
     create_configs() 
     time.sleep(10)
-
-# END OF FILE FunPayCortex/first_setup.py

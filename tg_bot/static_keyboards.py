@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/static_keyboards.py
+# START OF FILE FunPayCortex/tg_bot/static_keyboards.py
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -56,6 +56,9 @@ def SETTINGS_SECTIONS_2(cortex_instance: "Cortex", user_id: int) -> K:
         .add(B(_("mm_order_confirm"), callback_data=f"{CBT.CATEGORY}:oc")) \
         .add(B(_("mm_review_reply"), callback_data=f"{CBT.CATEGORY}:rr")) \
         .add(B(_("mm_new_msg_view"), callback_data=f"{CBT.CATEGORY}:mv"))
+
+    if user_role == "admin" or cortex_instance.MAIN_CFG["ManagerPermissions"].getboolean("can_control_orders", fallback=False):
+        kb.add(B(_("mm_order_control"), callback_data=f"{CBT.CATEGORY}:orc"))
 
     if user_role == "admin":
         kb.add(B(_("mm_blacklist"), callback_data=f"{CBT.CATEGORY}:bl")) \

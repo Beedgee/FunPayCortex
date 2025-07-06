@@ -98,7 +98,8 @@ def load_main_config(config_path: str):
             "can_view_stats": ["0", "1"],
             "can_edit_ar": ["0", "1"],
             "can_edit_ad": ["0", "1"],
-            "can_edit_templates": ["0", "1"]
+            "can_edit_templates": ["0", "1"],
+            "can_control_orders": ["0", "1"]
         },
 
         "BlockList": {
@@ -163,6 +164,13 @@ def load_main_config(config_path: str):
         "Statistics": {
             "report_interval": "any",
             "analysis_period": "any",
+        },
+
+        "OrderControl": {
+            "notify_pending_execution": ["0", "1"],
+            "pending_execution_threshold_m": "any",
+            "notify_pending_confirmation": ["0", "1"],
+            "pending_confirmation_threshold_h": "any"
         }
     }
 
@@ -177,13 +185,14 @@ def load_main_config(config_path: str):
 
     for section_name in values:
         if section_name not in config.sections():
-            if section_name in ["Manager", "ManagerPermissions", "Statistics"]:
+            if section_name in ["Manager", "ManagerPermissions", "Statistics", "OrderControl"]:
                 config.add_section(section_name)
                 if section_name == "ManagerPermissions":
                     config.set("ManagerPermissions", "can_view_stats", "0")
                     config.set("ManagerPermissions", "can_edit_ar", "0")
                     config.set("ManagerPermissions", "can_edit_ad", "0")
                     config.set("ManagerPermissions", "can_edit_templates", "0")
+                    config.set("ManagerPermissions", "can_control_orders", "0")
                 elif section_name == "Statistics":
                     config.set("Statistics", "report_interval", "0")
                     config.set("Statistics", "analysis_period", "30")
@@ -212,8 +221,12 @@ def load_main_config(config_path: str):
                 config.set("Manager", "registration_key", "")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
-            elif section_name == "ManagerPermissions" and param_name == "can_view_stats" and param_name not in config[section_name]:
+            elif section_name == "ManagerPermissions" and "can_control_orders" not in config[section_name]:
                 config.set("ManagerPermissions", "can_view_stats", "0")
+                config.set("ManagerPermissions", "can_edit_ar", "0")
+                config.set("ManagerPermissions", "can_edit_ad", "0")
+                config.set("ManagerPermissions", "can_edit_templates", "0")
+                config.set("ManagerPermissions", "can_control_orders", "0")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
             elif section_name == "Greetings" and param_name == "ignoreSystemMessages" and param_name not in config[
@@ -272,6 +285,13 @@ def load_main_config(config_path: str):
             elif section_name == "Statistics" and "report_interval" not in config[section_name]:
                 config.set("Statistics", "report_interval", "0")
                 config.set("Statistics", "analysis_period", "30")
+                with open(config_path, "w", encoding="utf-8") as f:
+                    config.write(f)
+            elif section_name == "OrderControl" and "notify_pending_execution" not in config[section_name]:
+                config.set("OrderControl", "notify_pending_execution", "1")
+                config.set("OrderControl", "pending_execution_threshold_m", "60")
+                config.set("OrderControl", "notify_pending_confirmation", "1")
+                config.set("OrderControl", "pending_confirmation_threshold_h", "24")
                 with open(config_path, "w", encoding="utf-8") as f:
                     config.write(f)
 

@@ -19,6 +19,7 @@ from locales.localizer import Localizer
 import logging
 import random
 import os
+import math
 
 logger = logging.getLogger("TGBot")
 localizer = Localizer()
@@ -395,13 +396,14 @@ def manager_permissions_settings(c: Cortex) -> K:
     p = f"{CBT.SWITCH}:ManagerPermissions"
     
     def l(s):
-        return '🟢' if c.MAIN_CFG["ManagerPermissions"].getboolean(s) else '🔴'
+        return '🟢' if c.MAIN_CFG["ManagerPermissions"].getboolean(s, fallback=False) else '🔴'
 
     kb = K() \
         .add(B(_("mp_can_view_stats", l("can_view_stats")), callback_data=f"{p}:can_view_stats")) \
         .add(B(_("mp_can_edit_ar", l("can_edit_ar")), callback_data=f"{p}:can_edit_ar")) \
         .add(B(_("mp_can_edit_ad", l("can_edit_ad")), callback_data=f"{p}:can_edit_ad")) \
         .add(B(_("mp_can_edit_templates", l("can_edit_templates")), callback_data=f"{p}:can_edit_templates")) \
+        .add(B(_("mp_can_control_orders", l("can_control_orders")), callback_data=f"{p}:can_control_orders")) \
         .row(B("❓", callback_data=f"{CBT.SEND_HELP}:help_manager_permissions"), B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
@@ -510,8 +512,8 @@ def products_file_edit(file_number: int, offset: int, confirmation: bool = False
     if not confirmation:
         keyboard.add(B(_("gl_delete"), callback_data=f"del_products_file:{file_number}:{offset}"))
     else:
-        keyboard.row(B(_("gl_yes") + " Удалить", callback_data=f"confirm_del_products_file:{file_number}:{offset}"),
-                     B(_("gl_no") + " Не удалять", callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
+        keyboard.row(B(_("gl_yes") + " " + _("gl_delete"), callback_data=f"confirm_del_products_file:{file_number}:{offset}"),
+                     B(_("gl_no") + " " + _("ord_dont_refund"), callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
     keyboard.row(B(_("gl_back"), callback_data=f"{CBT.PRODUCTS_FILES_LIST}:{offset}"),
                  B(_("gl_refresh"), callback_data=f"{CBT.EDIT_PRODUCTS_FILE}:{file_number}:{offset}"))
     return keyboard
@@ -644,7 +646,7 @@ def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
 
 
 def new_order(order_id: str, username: str, node_id: int,
-              confirmation: bool = False, no_refund: bool = False) -> K:
+              confirmation: bool = False, no_refund: bool = False, cortex: Cortex | None = None) -> K:
     """
     Генерирует клавиатуру для сообщения о новом заказе.
     :param order_id: ID заказа (без #).
@@ -652,13 +654,19 @@ def new_order(order_id: str, username: str, node_id: int,
     :param node_id: ID чата с покупателем.
     :param confirmation: заменить ли кнопку "Вернуть деньги" на подтверждение "Да" / "Нет"?
     :param no_refund: убрать ли кнопки, связанные с возвратом денег?
+    :param cortex: экземпляр Cortex для проверки статуса подтверждения.
     :return: объект клавиатуры для сообщения о новом заказе.
     """
     kb = K()
+
+    if cortex and cortex.MAIN_CFG["OrderControl"].getboolean("notify_pending_confirmation", False):
+        if not cortex.order_confirmations.get(order_id, {}).get("confirmed_ts"):
+            kb.add(B("✅ " + _("oc_mark_as_delivered_btn"), callback_data=f"{CBT.MARK_ORDER_DELIVERED}:{order_id}"))
+
     if not no_refund:
         if confirmation:
-            kb.row(B(_("gl_yes") + " Вернуть", callback_data=f"{CBT.REFUND_CONFIRMED}:{order_id}:{node_id}:{username}"),
-                   B(_("gl_no") + " Не возвращать", callback_data=f"{CBT.REFUND_CANCELLED}:{order_id}:{node_id}:{username}"))
+            kb.row(B(_("gl_yes") + " " + _("ord_refund"), callback_data=f"{CBT.REFUND_CONFIRMED}:{order_id}:{node_id}:{username}"),
+                   B(_("gl_no") + " " + _("ord_dont_refund"), callback_data=f"{CBT.REFUND_CANCELLED}:{order_id}:{node_id}:{username}"))
         else:
             kb.add(B(_("ord_refund"), callback_data=f"{CBT.REQUEST_REFUND}:{order_id}:{node_id}:{username}"))
 
@@ -834,8 +842,8 @@ def edit_plugin(c: Cortex, uuid: str, offset: int, ask_to_delete: bool = False):
     if not ask_to_delete:
         kb.add(B(_("gl_delete"), callback_data=f"{CBT.DELETE_PLUGIN}:{uuid}:{offset}"))
     else:
-        kb.row(B(_("gl_yes") + " Удалить плагин", callback_data=f"{CBT.CONFIRM_DELETE_PLUGIN}:{uuid}:{offset}"),
-               B(_("gl_no") + " Оставить", callback_data=f"{CBT.CANCEL_DELETE_PLUGIN}:{uuid}:{offset}"))
+        kb.row(B(_("gl_yes") + " " + _("gl_delete"), callback_data=f"{CBT.CONFIRM_DELETE_PLUGIN}:{uuid}:{offset}"),
+               B(_("gl_no") + " " + _("ord_dont_refund"), callback_data=f"{CBT.CANCEL_DELETE_PLUGIN}:{uuid}:{offset}"))
     kb.add(B(_("gl_back"), callback_data=f"{CBT.PLUGINS_LIST}:{offset}"))
     return kb
 
@@ -878,4 +886,25 @@ def statistics_config_menu(c: Cortex) -> K:
     kb.add(B(period_text, callback_data=f"{CBT.STATS_CONFIG_MENU}:set_period"))
 
     kb.add(B(_("gl_back"), callback_data=f"{CBT.STATS_MENU}:main"))
+    return kb
+
+def order_control_settings(c: Cortex):
+    """
+    Генерирует клавиатуру настроек "Контролёра заказов".
+    """
+    p = f"{CBT.SWITCH}:OrderControl"
+
+    def l(s):
+        return '🟢' if c.MAIN_CFG["OrderControl"].getboolean(s, fallback=False) else '🔴'
+
+    exec_threshold = c.MAIN_CFG["OrderControl"].getint("pending_execution_threshold_m")
+    confirm_threshold = c.MAIN_CFG["OrderControl"].getint("pending_confirmation_threshold_h")
+
+    kb = K() \
+        .add(B(_("oc_notify_pending_execution", l("notify_pending_execution")), callback_data=f"{p}:notify_pending_execution")) \
+        .add(B(_("oc_pending_execution_threshold", exec_threshold), callback_data=f"{CBT.OC_SET_EXEC_THRESHOLD}")) \
+        .add(B("─" * 20, callback_data=CBT.EMPTY)) \
+        .add(B(_("oc_notify_pending_confirmation", l("notify_pending_confirmation")), callback_data=f"{p}:notify_pending_confirmation")) \
+        .add(B(_("oc_pending_confirmation_threshold", confirm_threshold), callback_data=f"{CBT.OC_SET_CONFIRM_THRESHOLD}")) \
+        .add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
