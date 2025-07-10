@@ -1,11 +1,11 @@
 <!-- Open Graph / Twitter Card Meta -->
 <meta property="og:title" content="FunPay Cortex — Авто-Бот для FunPay ☄️" />
-<meta property="og:description" content="Мощный Telegram-бот для FunPay: автосдача, автоответы, автоподнятие, плагины. Экономьте время — управляйте ботом через Telegram и расширяйте функционал плагинами!" />
+<meta property="og:description" content="Мощный Telegram-бот для FunPay: автосдача, автоответы, автоподнятие, плагины. Экономьте время и автоматизируйте бизнес." />
 <meta property="og:image" content="https://i.imgur.com/mU4Jum5.png" />
 <meta name="twitter:card" content="summary_large_image" />
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=800&color=36CA5C&vCenter=true&width=700&lines=%F0%9F%9A%80+FunPay+Cortex%3A+%D0%91%D0%BE%D1%82%2C+%D0%BA%D0%BE%D1%82%D0%BE%D1%80%D1%8B%D0%B9+%D0%B4%D0%B5%D0%BB%D0%B0%D0%B5%D1%82+%D0%B2%D1%81%D1%91+%D0%B7%D0%B0+%D0%B2%D0%B0%D1%81!+%F0%9F%A7%A1" alt="FunPay Cortex Banner">
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=800&color=36CA5C&vCenter=true&width=700&lines=%F0%9F%9A%80+FunPay+Cortex%3A+%D0%91%D0%BE%D1%82%2C+%D0%BA%D0%BE%D1%82%D0%BE%D1%80%D1%8B%D0%B9+%D0%B4%D0%B5%D0%BB%D0%B0%D0%B5%D1%82+%D0%B2%D1%81%D1%91+%D0%B7%D0%B0+%D1%82%D0%B5%D0%B1%D1%8F+%F0%9F%A4%96" />
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@
 ---
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFEEAD,FFB347,FFCC70,36CA5C,F9F871,FFD700&height=120&section=header&text=FunPay%20Cortex&fontSize=48&fontAlignY=55&desc=Авто-Бот%20для%20FunPay%20на%20Python&descAlignY=75" alt="Capsule header">
+  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFEEAD,FFB347,FFCC70,36CA5C,F9F871,FFD700&height=120&section=header&text=FunPay%20Cortex&fontSize=48&fontAlignY=55&desc=Авто-Бот%20для%20FunPay%20%E2%80%94%20Максимум%20Автоматизации&descAlignY=75" />
 </p>
 
 ---
@@ -53,7 +53,29 @@
 
 ## 🚩 Быстрые ссылки
 
-| [Особенности](#-особенности) | [Установка](#-установка) | [Использование](#-использование) | [Демо](#-демо) | [Плагины](#-плагины) | [Поддержка](#-поддержка-и-связь) | [FAQ](#faq-и-лайфхаки) |
+| [Особенности](#-особенности) | [Установка](#-установка) | [Использование](#-использование) | [Демо](#-демо) | [Плагины](#-плагины) | [FAQ](#faq-и-лайфхаки) | [FunPayBot.ru: Запуск в облаке](#запуск-funpay-cortex-в-облаке-на-funpaybotru) |
+
+---
+
+## 🌐 Запуск FunPay Cortex в облаке на [FunPayBot.ru](https://funpaybot.ru)
+
+> <p align="center">
+>   <img src="https://funpaybot.ru/favicon.ico" width="32" align="absmiddle"/>
+>   <b>Быстрый старт без настройки и лишних забот!</b>
+> </p>
+>
+> Хотите запустить FunPay Cortex без установки Python, настройки виртуальных окружений и постоянного включенного компьютера?  
+> Теперь это можно сделать буквально в пару кликов через <a href="https://funpaybot.ru" target="_blank"><b>FunPayBot.ru</b></a> — официальный облачный сервис для вашего бота!
+>
+> **Преимущества FunPayBot.ru:**
+> - 🚀 Мгновенный запуск — не нужно ничего скачивать или разбираться с серверами.
+> - 💸 Дёшево — тарифы ниже, чем у VPS, и бесплатный тестовый период.
+> - 🛡️ Безопасно — все данные защищены, а бот всегда онлайн.
+> - 📱 Управляйте ботом и настройками прямо с телефона или ПК.
+>
+> 👉 [Попробовать бесплатно на FunPayBot.ru](https://funpaybot.ru)
+>
+> <sub>Сервис полностью поддерживает все функции FunPay Cortex, включая плагины, мульти-админов, автообновления и Telegram-управление.</sub>
 
 ---
 
@@ -99,7 +121,7 @@
 
 | Язык | Библиотеки | ОС | Конфиг |
 |:----:|:----------:|:--:|:------:|
-| ![Python](https://img.shields.io/badge/-Python%203.11+-yellow?logo=python&style=flat) | pyTelegramBotAPI, Requests, BeautifulSoup4, lxml, psutil, bcrypt | ![Linux](https://img.shields.io/badge/-Linux-green?logo=linux&style=flat) ![Windows](https://img.shields.io/badge/-Windows-blue?logo=windows&style=flat) ![Android](https://img.shields.io/badge/-Android-brightgreen?logo=android&style=flat) | YAML |
+| ![Python](https://img.shields.io/badge/-Python%203.11+-yellow?logo=python&style=flat) | pyTelegramBotAPI, Requests, BeautifulSoup4, lxml, psutil, bcrypt | ![Linux](https://img.shields.io/badge/Linux-blue?style=flat) | .env, json, yaml |
 
 ---
 
@@ -190,7 +212,7 @@
 ## 🎥 Демо
 
 <p align="center">
-  <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWVxbDA3N2N3eGxjY2p4aGhnbzdjN2V0aGVzZzF0dGc0d2xjY2Z4bCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sIIhZliQ2k393wXyIC/giphy.gif" width="480" alt="FunPay Cortex Demo">
+  <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWVxbDA3N2N3eGxjY2p4aGhnbzdjN2V0aGVzZzF0dGc0d2xjY2Z4bCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sIIhZliQ2k393wXyIC/giphy.gif" width="480" alt="FunPay Cortex Demo"/>
 </p>
 
 <!--
@@ -267,5 +289,5 @@ MIT © Beedgee
 ---
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFB347,FFD700,FFFACD,ADFF2F,7CFC00,36CA5C&height=80&section=footer&text=FunPay%20Cortex%20%E2%80%94%20Ваша%20торговля%20на%20FunPay%20на%20автопилоте!&fontSize=24&fontAlign=50&fontColor=000000" alt="Capsule footer">
+  <img src="https://capsule-render.vercel.app/api?type=rect&color=FFB347,FFD700,FFFACD,ADFF2F,7CFC00,36CA5C&height=80&section=footer&text=FunPay%20Cortex%20%E2%80%94%20Ваша%20торговля%20без%20рутины!&fontSize=24&fontAlignY=38" />
 </p>
