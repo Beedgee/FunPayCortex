@@ -615,7 +615,8 @@ class Cortex(object):
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
             self.__init_telegram()
             for module in [auto_response_cp, auto_delivery_cp, config_loader_cp, templates_cp, plugins_cp,
-                           file_uploader, authorized_users_cp, proxy_cp, statistics_cp, crm_cp, order_control_cp, default_cp]:
+                           file_uploader, authorized_users_cp, proxy_cp, statistics_cp, crm_cp, order_control_cp,
+                           default_cp]:
                 self.add_handlers_from_plugin(module)
         self.run_handlers(self.pre_init_handlers, (self,))
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
@@ -874,4 +875,4 @@ class Cortex(object):
     @property
     def block_tg_login(self) -> bool: return self.MAIN_CFG["Telegram"].getboolean("blockLogin")
 
-# END OF FILE FunPayCortex/cortex.py
+# END OF FILE FunPayCortex-main/cortex.py

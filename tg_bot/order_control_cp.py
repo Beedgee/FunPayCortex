@@ -40,7 +40,8 @@ def periodic_order_check(cortex: Cortex):
                                 
                                 logger.info(f"Обнаружен зависший заказ #{order.id}, ожидающий выполнения.")
                                 chat = cortex.account.get_chat_by_name(order.buyer_username, True)
-                                text = _("oc_notify_pending_execution_msg", order_id=order.id, username=utils.escape(order.buyer_username)).format(threshold_minutes)
+                                # ИСПРАВЛЕНО: Все аргументы передаются в функцию локализации
+                                text = _("oc_notify_pending_execution_msg", order_id=order.id, username=utils.escape(order.buyer_username), minutes=threshold_minutes)
                                 kb_markup = kb.new_order(order.id, order.buyer_username, chat.id if chat else 0, cortex=cortex)
                                 cortex.telegram.send_notification(text, kb_markup, notification_type=utils.NotificationTypes.other)
                                 
@@ -68,7 +69,8 @@ def periodic_order_check(cortex: Cortex):
                         if (now_ts - confirmation_start_ts) > threshold_seconds:
                             logger.info(f"Обнаружен зависший заказ #{order.id}, ожидающий подтверждения.")
                             chat = cortex.account.get_chat_by_name(order.buyer_username, True)
-                            text = _("oc_notify_pending_confirmation_msg", order_id=order.id, username=utils.escape(order.buyer_username)).format(threshold_hours)
+                            # ИСПРАВЛЕНО: Все аргументы передаются в функцию локализации
+                            text = _("oc_notify_pending_confirmation_msg", order_id=order.id, username=utils.escape(order.buyer_username), hours=threshold_hours)
                             kb_markup = kb.new_order(order.id, order.buyer_username, chat.id if chat else 0, cortex=cortex)
                             cortex.telegram.send_notification(text, kb_markup, notification_type=utils.NotificationTypes.other)
 

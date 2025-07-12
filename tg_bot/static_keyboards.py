@@ -97,4 +97,4 @@ def CONFIGS_UPLOADER() -> K:
         .add(B("📤 " + _("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
 
-# END OF FILE FunPayCortex/tg_bot/static_keyboards.py
+# END OF FILE FunPayCortex-main/tg_bot/static_keyboards.py
