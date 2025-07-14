@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/locales/localizer.py
+# Файл: FunPayCortex-main/locales/localizer.py
 
 from typing import Literal
 

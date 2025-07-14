@@ -80,7 +80,7 @@ def AR_SETTINGS() -> K:
 def AD_SETTINGS() -> K:
     return K() \
         .add(B(_("ad_edit_autodelivery"), callback_data=f"{CBT.AD_LOTS_LIST}:0")) \
-        .add(B(_("ad_add_autodelivery"), callback_data=f"{CBT.FP_LOTS_LIST}:0")) \
+        .add(B(_("ad_add_autodelivery"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0")) \
         .add(B(_("ad_edit_goods_file"), callback_data=f"{CBT.PRODUCTS_FILES_LIST}:0")) \
         .row(B(_("ad_upload_goods_file"), callback_data=CBT.UPLOAD_PRODUCTS_FILE),
              B(_("ad_create_goods_file"), callback_data=CBT.CREATE_PRODUCTS_FILE)) \
@@ -97,4 +97,4 @@ def CONFIGS_UPLOADER() -> K:
         .add(B("📤 " + _("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
 
-# END OF FILE FunPayCortex-main/tg_bot/static_keyboards.py
+# END OF FILE FunPayCortex/tg_bot/static_keyboards.py

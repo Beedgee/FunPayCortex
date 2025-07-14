@@ -759,3 +759,27 @@ STATS_CONFIG_MENU = "90"
 MARK_ORDER_DELIVERED = "91"
 OC_SET_EXEC_THRESHOLD = "92"
 OC_SET_CONFIRM_THRESHOLD = "93"
+# Auto-delivery lots choosing (Выбор лотов для автовыдачи)
+AD_CHOOSE_CATEGORY_LIST = "100"
+"""
+Callback для открытия списка категорий (игр) для привязки автовыдачи.
+Использование: CBT.AD_CHOOSE_CATEGORY_LIST:offset
+"""
+
+AD_CHOOSE_SUBCATEGORY_LIST = "101"
+"""
+Callback для открытия списка подкатегорий для привязки автовыдачи.
+Использование: CBT.AD_CHOOSE_SUBCATEGORY_LIST:category_id:offset
+"""
+
+AD_CHOOSE_LOT_LIST = "102"
+"""
+Callback для открытия списка лотов из подкатегории для привязки автовыдачи.
+Использование: CBT.AD_CHOOSE_LOT_LIST:category_id:subcategory_id:offset
+"""
+
+ADD_AD_TO_LOT_FROM_SUBCATEGORY = "103" 
+"""
+Финальный Callback для привязки лота, выбранного из списка подкатегории.
+Использование: CBT.ADD_AD_TO_LOT_FROM_SUBCATEGORY:lot_index:subcategory_id:category_id:offset
+"""

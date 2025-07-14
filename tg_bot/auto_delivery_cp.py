@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/auto_delivery_cp.py
+# FunPayCortex-main/tg_bot/auto_delivery_cp.py
 
 """
 В данном модуле описаны функции для ПУ конфига автовыдачи.
@@ -6,13 +6,12 @@
 """
 
 from __future__ import annotations
-
 import datetime
 from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
     from cortex import Cortex
 
+from FunPayAPI.common.enums import SubCategoryTypes
 from tg_bot import utils, keyboards as kb, CBT, MENU_CFG
 from tg_bot.static_keyboards import CLEAR_STATE_BTN
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery
@@ -68,20 +67,139 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             return False
         return True
 
-    # Основное меню настроек автовыдачи.
+    # ОСНОВНОЕ МЕНЮ АВТОВЫДАЧИ
     def open_ad_lots_list(c: CallbackQuery):
+        """Открывает список уже настроенных для автовыдачи лотов."""
         offset = int(c.data.split(":")[1])
         bot.edit_message_text(_("desc_ad_list"), c.message.chat.id, c.message.id,
                               reply_markup=kb.lots_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
 
-    def open_fp_lots_list(c: CallbackQuery):
+    # НОВЫЙ ПОШАГОВЫЙ ПРОЦЕСС ПРИВЯЗКИ АВТОВЫДАЧИ
+    def open_ad_categories_list(c: CallbackQuery):
+        """Открывает первый шаг привязки автовыдачи - выбор категории (игры)."""
         offset = int(c.data.split(":")[1])
         last_update_time = cortex_instance.last_tg_profile_update.strftime("%d.%m.%Y %H:%M:%S") if cortex_instance.last_tg_profile_update else _("never_updated")
+        
+        if not cortex_instance.tg_profile:
+             bot.answer_callback_query(c.id, _("ad_lots_list_updating_err"), show_alert=True)
+             return
+
         bot.edit_message_text(_("desc_ad_fp_lot_list", last_update_time),
-                              c.message.chat.id, c.message.id, reply_markup=kb.funpay_lots_list(cortex_instance, offset))
+                              c.message.chat.id, c.message.id, reply_markup=kb.ad_categories_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
 
+    def open_ad_subcategories_list(c: CallbackQuery):
+        """Открывает второй шаг - выбор подкатегории."""
+        try:
+            category_id = int(c.data.split(":")[1])
+            offset = int(c.data.split(":")[2])
+        except (ValueError, IndexError):
+            bot.answer_callback_query(c.id, _("gl_error"), show_alert=True)
+            return
+
+        category = cortex_instance.account.get_category(category_id)
+        category_name = category.name if category else f"ID: {category_id}"
+
+        bot.edit_message_text(f"📁 Выберите раздел в игре «{utils.escape(category_name)}»:",
+                              c.message.chat.id, c.message.id,
+                              reply_markup=kb.ad_subcategories_list(cortex_instance, category_id, offset))
+        bot.answer_callback_query(c.id)
+
+    def open_ad_lots_from_subcategory_list(c: CallbackQuery):
+        """Открывает третий шаг - выбор конкретного лота из подкатегории."""
+        try:
+            category_id = int(c.data.split(":")[1])
+            subcategory_id = int(c.data.split(":")[2])
+            offset = int(c.data.split(":")[3])
+        except (ValueError, IndexError):
+            bot.answer_callback_query(c.id, _("gl_error"), show_alert=True)
+            return
+        
+        msg = bot.edit_message_text("⏳ Загружаю лоты из раздела...", c.message.chat.id, c.message.id)
+        
+        try:
+            # НЕ ДЕЛАЕМ СЕТЕВОЙ ЗАПРОС, а фильтруем уже загруженные данные
+            all_lots = cortex_instance.tg_profile.get_common_lots()
+            lots_in_subcategory = [
+                lot for lot in all_lots if lot.subcategory and lot.subcategory.id == subcategory_id
+            ]
+
+            subcategory = cortex_instance.account.get_subcategory(SubCategoryTypes.COMMON, subcategory_id)
+            subcategory_name = subcategory.name if subcategory else f"ID: {subcategory_id}"
+
+            bot.edit_message_text(f"📦 Выберите лот из раздела «{utils.escape(subcategory_name)}»:",
+                                  c.message.chat.id, msg.id,
+                                  reply_markup=kb.ad_lots_from_subcategory_list(cortex_instance, lots_in_subcategory, category_id, subcategory_id, offset))
+        except Exception as e:
+            logger.error(f"Ошибка при фильтрации лотов для подкатегории {subcategory_id}: {e}")
+            logger.debug("TRACEBACK", exc_info=True)
+            bot.edit_message_text(_("ad_lots_list_updating_err"), c.message.chat.id, msg.id)
+
+        bot.answer_callback_query(c.id)
+
+    def add_ad_to_lot_from_subcategory(c: CallbackQuery):
+        """Обрабатывает финальный выбор лота и привязывает автовыдачу."""
+        try:
+            lot_index_on_page = int(c.data.split(":")[1])
+            subcategory_id = int(c.data.split(":")[2])
+            category_id = int(c.data.split(":")[3])
+            offset = int(c.data.split(":")[4])
+        except (ValueError, IndexError):
+            bot.answer_callback_query(c.id, _("gl_error"), show_alert=True)
+            return
+
+        try:
+            all_lots = cortex_instance.tg_profile.get_common_lots()
+            lots_in_subcategory = [
+                lot for lot in all_lots if lot.subcategory and lot.subcategory.id == subcategory_id
+            ]
+            absolute_lot_index = offset + lot_index_on_page
+
+            if absolute_lot_index >= len(lots_in_subcategory):
+                bot.answer_callback_query(c.id, _("ad_lot_not_found_err", absolute_lot_index), show_alert=True)
+                return
+
+            selected_lot = lots_in_subcategory[absolute_lot_index]
+            lot_title = selected_lot.title
+
+            if lot_title in cortex_instance.AD_CFG.sections():
+                bot.answer_callback_query(c.id, _("ad_already_ad_err", utils.escape(lot_title)), show_alert=True)
+                return
+            
+            cortex_instance.AD_CFG.add_section(lot_title)
+            default_response_text = _("ad_default_response_text_new_lot")
+            cortex_instance.AD_CFG.set(lot_title, "response", default_response_text)
+            cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
+            
+            bot.answer_callback_query(c.id, _("ad_lot_linked", utils.escape(lot_title)), show_alert=True)
+            logger.info(_("log_ad_linked", c.from_user.username, c.from_user.id, lot_title))
+
+            c.data = f"{CBT.AD_CHOOSE_LOT_LIST}:{category_id}:{subcategory_id}:{offset}"
+            open_ad_lots_from_subcategory_list(c)
+
+        except Exception as e:
+            logger.error(f"Ошибка при привязке лота из подкатегории {subcategory_id}: {e}")
+            logger.debug("TRACEBACK", exc_info=True)
+            bot.answer_callback_query(c.id, _("ad_lots_list_updating_err"), show_alert=True)
+            
+    # ОБНОВЛЕНИЕ СПИСКА ЛОТОВ
+    def update_funpay_lots_list(c: CallbackQuery):
+        """Обновляет профиль пользователя в Telegram (cortex.tg_profile)."""
+        offset = int(c.data.split(":")[1])
+        new_msg = bot.send_message(c.message.chat.id, _("ad_updating_lots_list"))
+        bot.answer_callback_query(c.id)
+        
+        update_result = cortex_instance.update_lots_and_categories()
+        if not update_result:
+            bot.edit_message_text(_("ad_lots_list_updating_err"), new_msg.chat.id, new_msg.id)
+            return
+        bot.delete_message(new_msg.chat.id, new_msg.id)
+        # После обновления снова открываем список категорий
+        c.data = f"{CBT.AD_CHOOSE_CATEGORY_LIST}:{offset}"
+        open_ad_categories_list(c)
+
+    # РУЧНОЙ ВВОД И ОСТАЛЬНЫЕ ФУНКЦИИ (остаются без изменений)
     def act_add_lot_manually(c: CallbackQuery):
         offset = int(c.data.split(":")[1])
         result = bot.send_message(c.message.chat.id, _("copy_lot_name"), reply_markup=CLEAR_STATE_BTN())
@@ -95,7 +213,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 
         if lot_title in cortex_instance.AD_CFG.sections():
             error_keyboard = K() \
-                .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
+                .row(B(_("gl_back"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:{fp_lots_offset}"),
                      B(_("ad_add_another_ad"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{fp_lots_offset}"))
             bot.reply_to(m, _("ad_lot_already_exists", utils.escape(lot_title)), reply_markup=error_keyboard)
             return
@@ -109,7 +227,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         lot_index = len(cortex_instance.AD_CFG.sections()) - 1
         ad_lot_offset = utils.get_offset(lot_index, MENU_CFG.AD_BTNS_AMOUNT)
         keyboard = K() \
-            .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
+            .row(B(_("gl_back"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:{fp_lots_offset}"),
                  B(_("ad_add_more_ad"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{fp_lots_offset}"),
                  B(_("gl_configure"), callback_data=f"{CBT.EDIT_AD_LOT}:{lot_index}:{ad_lot_offset}"))
         bot.send_message(m.chat.id, _("ad_lot_linked", utils.escape(lot_title)), reply_markup=keyboard)
@@ -180,7 +298,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         logger.info(_("log_gf_created", m.from_user.username, m.from_user.id, actual_file_name))
         bot.send_message(m.chat.id, _("gf_created", utils.escape(actual_file_name)), reply_markup=keyboard_success)
 
-    # Меню настройки лотов.
     def open_edit_lot_cp(c: CallbackQuery):
         split_data = c.data.split(":")
         lot_index, offset = int(split_data[1]), int(split_data[2])
@@ -348,61 +465,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
                               reply_markup=kb.lots_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
 
-    # Меню добавления лота с FunPay
-    def update_funpay_lots_list(c: CallbackQuery):
-        offset = int(c.data.split(":")[1])
-        new_msg = bot.send_message(c.message.chat.id, _("ad_updating_lots_list"))
-        bot.answer_callback_query(c.id)
-        
-        update_result = cortex_instance.update_lots_and_categories()
-        if not update_result:
-            bot.edit_message_text(_("ad_lots_list_updating_err"), new_msg.chat.id, new_msg.id)
-            return
-        bot.delete_message(new_msg.chat.id, new_msg.id)
-        c.data = f"{CBT.FP_LOTS_LIST}:{offset}"
-        open_fp_lots_list(c)
-
-    def add_ad_to_lot(c: CallbackQuery):
-        split_data = c.data.split(":")
-        fp_lot_index, fp_lots_offset = int(split_data[1]), int(split_data[2])
-        
-        all_fp_lots = cortex_instance.tg_profile.get_common_lots()
-        if fp_lot_index >= len(all_fp_lots):
-            update_button = K().add(B(_("gl_refresh"), callback_data=f"{CBT.FP_LOTS_LIST}:0"))
-            bot.edit_message_text(_("ad_lot_not_found_err", fp_lot_index),
-                                  c.message.chat.id, c.message.id, reply_markup=update_button)
-            bot.answer_callback_query(c.id)
-            return
-
-        selected_lot_obj = all_fp_lots[fp_lot_index]
-        selected_lot_title = selected_lot_obj.title
-
-        if selected_lot_title in cortex_instance.AD_CFG.sections():
-            ad_lot_index_in_cfg = cortex_instance.AD_CFG.sections().index(selected_lot_title)
-            offset_for_ad_cfg_kb = utils.get_offset(ad_lot_index_in_cfg, MENU_CFG.AD_BTNS_AMOUNT)
-            keyboard_info = K() \
-                .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
-                     B(_("gl_configure"), callback_data=f"{CBT.EDIT_AD_LOT}:{ad_lot_index_in_cfg}:{offset_for_ad_cfg_kb}"))
-            bot.send_message(c.message.chat.id, _("ad_already_ad_err", utils.escape(selected_lot_title)), reply_markup=keyboard_info)
-            bot.answer_callback_query(c.id)
-            return
-
-        cortex_instance.AD_CFG.add_section(selected_lot_title)
-        default_response_text = _("ad_default_response_text_new_lot")
-        cortex_instance.AD_CFG.set(selected_lot_title, "response", default_response_text)
-        cortex_instance.save_config(cortex_instance.AD_CFG, "configs/auto_delivery.cfg")
-
-        new_ad_lot_index = len(cortex_instance.AD_CFG.sections()) - 1
-        offset_for_new_ad_lot_kb = utils.get_offset(new_ad_lot_index, MENU_CFG.AD_BTNS_AMOUNT)
-        keyboard_success = K() \
-            .row(B(_("gl_back"), callback_data=f"{CBT.FP_LOTS_LIST}:{fp_lots_offset}"),
-                 B(_("gl_configure"), callback_data=f"{CBT.EDIT_AD_LOT}:{new_ad_lot_index}:{offset_for_new_ad_lot_kb}"))
-
-        logger.info(_("log_ad_linked", c.from_user.username, c.from_user.id, selected_lot_title))
-        bot.send_message(c.message.chat.id, _("ad_lot_linked", utils.escape(selected_lot_title)), reply_markup=keyboard_success)
-        bot.answer_callback_query(c.id)
-
-    # Меню управления файлов с товарами.
     def open_gf_settings(c: CallbackQuery):
         split_data = c.data.split(":")
         file_index, offset = int(split_data[1]), int(split_data[2])
@@ -597,45 +659,48 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             bot.answer_callback_query(c.id)
             return
             
+    # РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ
     tg.cbq_handler(open_ad_lots_list, lambda c: c.data.startswith(f"{CBT.AD_LOTS_LIST}:"))
-    tg.cbq_handler(open_fp_lots_list, lambda c: c.data.startswith(f"{CBT.FP_LOTS_LIST}:"))
+    tg.cbq_handler(open_gf_list, lambda c: c.data.startswith(f"{CBT.PRODUCTS_FILES_LIST}:"))
+    
+    # Новый флоу привязки автовыдачи
+    tg.cbq_handler(open_ad_categories_list, lambda c: c.data.startswith(f"{CBT.AD_CHOOSE_CATEGORY_LIST}:"))
+    tg.cbq_handler(open_ad_subcategories_list, lambda c: c.data.startswith(f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:"))
+    tg.cbq_handler(open_ad_lots_from_subcategory_list, lambda c: c.data.startswith(f"{CBT.AD_CHOOSE_LOT_LIST}:"))
+    tg.cbq_handler(add_ad_to_lot_from_subcategory, lambda c: c.data.startswith(f"{CBT.ADD_AD_TO_LOT}:"))
+
+    # Обновление профиля, чтобы список игр/лотов был актуальным
+    tg.cbq_handler(update_funpay_lots_list, lambda c: c.data.startswith("update_funpay_lots:"))
+
+    # Ручной ввод названия лота
     tg.cbq_handler(act_add_lot_manually, lambda c: c.data.startswith(f"{CBT.ADD_AD_TO_LOT_MANUALLY}:"))
     tg.msg_handler(add_lot_manually,
                    func=lambda m: tg.check_state(m.chat.id, m.from_user.id, CBT.ADD_AD_TO_LOT_MANUALLY))
 
-    tg.cbq_handler(open_gf_list, lambda c: c.data.startswith(f"{CBT.PRODUCTS_FILES_LIST}:"))
-
+    # Создание файлов товаров
     tg.cbq_handler(act_create_gf, lambda c: c.data == CBT.CREATE_PRODUCTS_FILE)
     tg.msg_handler(create_gf, func=lambda m: tg.check_state(m.chat.id, m.from_user.id,
                                                             CBT.CREATE_PRODUCTS_FILE))
-
+    
+    # Редактирование конкретного лота в автовыдаче
     tg.cbq_handler(open_edit_lot_cp, lambda c: c.data.startswith(f"{CBT.EDIT_AD_LOT}:"))
-
     tg.cbq_handler(act_edit_delivery_text, lambda c: c.data.startswith(f"{CBT.EDIT_LOT_DELIVERY_TEXT}:"))
     tg.msg_handler(edit_delivery_text,
                    func=lambda m: tg.check_state(m.chat.id, m.from_user.id, CBT.EDIT_LOT_DELIVERY_TEXT))
-
     tg.cbq_handler(act_link_gf, lambda c: c.data.startswith(f"{CBT.BIND_PRODUCTS_FILE}:"))
     tg.msg_handler(link_gf, func=lambda m: tg.check_state(m.chat.id, m.from_user.id, CBT.BIND_PRODUCTS_FILE))
-
     tg.cbq_handler(switch_lot_setting, lambda c: c.data.startswith("switch_lot:"))
     tg.cbq_handler(create_lot_delivery_test, lambda c: c.data.startswith("test_auto_delivery:"))
     tg.cbq_handler(del_lot, lambda c: c.data.startswith(f"{CBT.DEL_AD_LOT}:"))
 
-    tg.cbq_handler(add_ad_to_lot, lambda c: c.data.startswith(f"{CBT.ADD_AD_TO_LOT}:"))
-    tg.cbq_handler(update_funpay_lots_list, lambda c: c.data.startswith("update_funpay_lots:"))
-
+    # Управление файлами товаров
     tg.cbq_handler(open_gf_settings, lambda c: c.data.startswith(f"{CBT.EDIT_PRODUCTS_FILE}:"))
-
     tg.cbq_handler(act_add_products_to_file, lambda c: c.data.startswith(f"{CBT.ADD_PRODUCTS_TO_FILE}:"))
     tg.msg_handler(add_products_to_file,
                    func=lambda m: tg.check_state(m.chat.id, m.from_user.id, CBT.ADD_PRODUCTS_TO_FILE))
-
     tg.cbq_handler(send_products_file, lambda c: c.data.startswith("download_products_file:"))
     tg.cbq_handler(ask_del_products_file, lambda c: c.data.startswith("del_products_file:"))
     tg.cbq_handler(del_products_file, lambda c: c.data.startswith("confirm_del_products_file:"))
 
 
 BIND_TO_PRE_INIT = [init_auto_delivery_cp]
-
-# END OF FILE FunPayCortex/tg_bot/auto_delivery_cp.py

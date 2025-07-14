@@ -1,12 +1,15 @@
+# Файл: FunPayCortex-main/tg_bot/keyboards.py
+
 """
 Функции генерации клавиатур для суб-панелей управления.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from cortex import Cortex
+    from FunPayAPI.types import MyLotShortcut, Category, SubCategory
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 
@@ -14,6 +17,7 @@ from tg_bot import CBT, MENU_CFG, utils
 from tg_bot.utils import NotificationTypes, bool_to_text, add_navigation_buttons
 
 import Utils.cortex_tools
+from FunPayAPI.common.enums import SubCategoryTypes
 from locales.localizer import Localizer
 
 import logging
@@ -547,39 +551,6 @@ def lots_list(cortex_instance: Cortex, offset: int) -> K:
     return keyboard
 
 
-def funpay_lots_list(c: Cortex, offset: int):
-    """
-    Генерирует клавиатуру со списком лотов текущего профиля (funpay_lots:<offset>).
-    :param c: объект Cortex.
-    :param offset: смещение списка слотов.
-    :return: объект клавиатуры со списком лотов текущего профиля.
-    """
-    keyboard = K()
-    all_fp_lots = c.tg_profile.get_common_lots()
-    lots_on_page = all_fp_lots[offset: offset + MENU_CFG.FP_LOTS_BTNS_AMOUNT]
-    if not lots_on_page and offset != 0:
-        offset = 0
-        lots_on_page = all_fp_lots[offset: offset + MENU_CFG.FP_LOTS_BTNS_AMOUNT]
-
-    if not lots_on_page and offset == 0:
-        keyboard.add(B("🤷 Лотов на FunPay не найдено или не загружены", callback_data=f"update_funpay_lots:{offset}"))
-    else:
-        for index, lot_obj in enumerate(lots_on_page):
-            is_ad_configured = lot_obj.title in c.AD_CFG.sections()
-            prefix = "✅ " if is_ad_configured else "➕ "
-            keyboard.add(B(f"{prefix}{lot_obj.description[:40]}{'...' if len(lot_obj.description) > 40 else ''}",
-                           callback_data=f"{CBT.ADD_AD_TO_LOT}:{all_fp_lots.index(lot_obj)}:{offset}"))
-
-    keyboard = add_navigation_buttons(keyboard, offset, MENU_CFG.FP_LOTS_BTNS_AMOUNT, len(lots_on_page),
-                                      len(all_fp_lots), CBT.FP_LOTS_LIST)
-
-    keyboard.row(B(_("fl_manual"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{offset}"),
-                 B(_("gl_refresh"), callback_data=f"update_funpay_lots:{offset}"))
-    keyboard.add(B(_("ad_to_ad"), callback_data=f"{CBT.CATEGORY}:ad"))
-    keyboard.add(B(_("ad_to_mm"), callback_data=CBT.MAIN))
-    return keyboard
-
-
 def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
     """
     Генерирует клавиатуру изменения лота (CBT.EDIT_AD_LOT:<lot_num>:<offset>).
@@ -907,4 +878,106 @@ def order_control_settings(c: Cortex):
         .add(B(_("oc_notify_pending_confirmation", l("notify_pending_confirmation")), callback_data=f"{p}:notify_pending_confirmation")) \
         .add(B(_("oc_pending_confirmation_threshold", confirm_threshold), callback_data=f"{CBT.OC_SET_CONFIRM_THRESHOLD}")) \
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
+    return kb
+
+# НОВЫЕ ФУНКЦИИ ДЛЯ ПОШАГОВОГО ВЫБОРА
+def ad_categories_list(c: Cortex, offset: int) -> K:
+    """
+    Генерирует клавиатуру со списком категорий (игр), где у пользователя есть лоты.
+    """
+    kb = K()
+    # Данные берем из tg_profile, который обновляется по кнопке "Обновить"
+    if not c.tg_profile:
+        kb.add(B(_("gl_error_try_again"), callback_data=f"update_funpay_lots:{offset}"))
+        return kb
+        
+    all_lots = c.tg_profile.get_common_lots()
+    
+    unique_categories = {}
+    for lot in all_lots:
+        if lot.subcategory and lot.subcategory.category:
+            cat = lot.subcategory.category
+            if cat.id not in unique_categories:
+                unique_categories[cat.id] = cat
+                
+    sorted_categories = sorted(unique_categories.values(), key=lambda category: category.name)
+    
+    cats_on_page = sorted_categories[offset: offset + MENU_CFG.AD_BTNS_AMOUNT]
+    
+    if not cats_on_page and offset == 0:
+        kb.add(B("🤷‍♂️ Не найдено игр с активными лотами", callback_data=CBT.EMPTY))
+    else:
+        for category in cats_on_page:
+            kb.add(B(f"🎮 {category.name}", callback_data=f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:{category.id}:0"))
+
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AD_BTNS_AMOUNT, len(cats_on_page),
+                                len(sorted_categories), CBT.AD_CHOOSE_CATEGORY_LIST)
+    
+    kb.row(B(_("gl_refresh"), callback_data=f"update_funpay_lots:{offset}"),
+           B(_("fl_manual"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{offset}"))
+    kb.add(B(_("ad_to_ad"), callback_data=f"{CBT.CATEGORY}:ad"))
+    return kb
+
+
+def ad_subcategories_list(c: Cortex, category_id: int, offset: int) -> K:
+    """
+    Генерирует клавиатуру со списком подкатегорий в выбранной игре.
+    """
+    kb = K()
+    if not c.tg_profile:
+        kb.add(B(_("gl_error_try_again"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0"))
+        return kb
+        
+    all_lots = c.tg_profile.get_common_lots()
+
+    unique_subcategories = {}
+    for lot in all_lots:
+        if lot.subcategory and lot.subcategory.category.id == category_id:
+            subcat = lot.subcategory
+            if subcat.id not in unique_subcategories:
+                unique_subcategories[subcat.id] = subcat
+
+    sorted_subcategories = sorted(unique_subcategories.values(), key=lambda subcat: subcat.name)
+
+    subcats_on_page = sorted_subcategories[offset: offset + MENU_CFG.AD_BTNS_AMOUNT]
+
+    if not subcats_on_page and offset == 0:
+        kb.add(B("🤷‍♂️ Не найдено разделов с лотами в этой игре", callback_data=CBT.EMPTY))
+    else:
+        for subcat in subcats_on_page:
+            kb.add(B(f"📁 {subcat.name}", callback_data=f"{CBT.AD_CHOOSE_LOT_LIST}:{category_id}:{subcat.id}:0"))
+
+    extra_nav = [category_id]
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AD_BTNS_AMOUNT, len(subcats_on_page),
+                                len(sorted_subcategories), CBT.AD_CHOOSE_SUBCATEGORY_LIST, extra_nav)
+
+    kb.add(B(_("gl_back"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0"))
+    return kb
+
+
+def ad_lots_from_subcategory_list(c: Cortex, lots: List[MyLotShortcut], category_id: int, subcategory_id: int, offset: int) -> K:
+    """
+    Генерирует клавиатуру со списком лотов из выбранной подкатегории.
+    """
+    kb = K()
+    lots_on_page = lots[offset: offset + MENU_CFG.AD_BTNS_AMOUNT]
+
+    if not lots_on_page and offset == 0:
+        kb.add(B("🤷‍♂️ Не найдено лотов в этом разделе.", callback_data=CBT.EMPTY))
+    else:
+        for index, lot_obj in enumerate(lots_on_page):
+            # В `get_my_subcategory_lots` нет информации о названии лота, используем описание
+            lot_title = lot_obj.description or f"Лот ID {lot_obj.id}"
+            is_ad_configured = lot_title in c.AD_CFG.sections()
+            prefix = "✅ " if is_ad_configured else "➕ "
+            display_title = lot_title[:40] + "..." if len(lot_title) > 40 else lot_title
+            # Передаем индекс на странице, а не абсолютный
+            callback_data = f"{CBT.ADD_AD_TO_LOT}:{index}:{subcategory_id}:{category_id}:{offset}"
+            kb.add(B(f"{prefix}{display_title}", callback_data=callback_data))
+
+    extra_nav = [category_id, subcategory_id]
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AD_BTNS_AMOUNT, len(lots_on_page),
+                                len(lots), CBT.AD_CHOOSE_LOT_LIST, extra_nav)
+                                
+    kb.add(B(_("gl_back"), callback_data=f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:{category_id}:0"))
     return kb
