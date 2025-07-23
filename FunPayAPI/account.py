@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/FunPayAPI/account.py
+# START OF FILE FunPayCortex-main/FunPayAPI/account.py
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, Literal, Any, Optional, IO
@@ -32,6 +32,9 @@ class Account:
     """
     Класс для управления аккаунтом FunPay.
 
+    :param name: Имя аккаунта, заданное в конфиге.
+    :type name: :obj:`str`
+
     :param golden_key: токен (golden_key) аккаунта.
     :type golden_key: :obj:`str`
 
@@ -48,9 +51,11 @@ class Account:
     :type locale: :obj:`Literal["ru", "en", "uk"]` or :obj:`None`
     """
 
-    def __init__(self, golden_key: str, user_agent: str | None = None,
+    def __init__(self, name: str, golden_key: str, user_agent: str | None = None,
                  requests_timeout: int | float = 10, proxy: Optional[dict] = None,
                  locale: Literal["ru", "en", "uk"] | None = None):
+        self.name: str = name
+        """Имя аккаунта, заданное в конфиге."""
         self.golden_key: str = golden_key
         """Токен (golden_key) аккаунта."""
         self.user_agent: str | None = user_agent
@@ -99,6 +104,15 @@ class Account:
         """Валюта аккаунта"""
         self.total_balance: int | None = None
         """Примерный общий баланс аккаунта в валюте аккаунта."""
+        self.balance: FunPayAPI.types.Balance | None = None
+        """Объект баланса аккаунта."""
+        self.profile: FunPayAPI.types.UserProfile | None = None
+        """Объект профиля аккаунта."""
+        self.raise_time: dict[int, int] = {}
+        """Время следующего поднятия для каждой категории."""
+        self.raised_time: dict[int, int] = {}
+        """Время последнего успешного поднятия для каждой категории."""
+
         self.csrf_token: str | None = None
         """CSRF токен."""
         self.phpsessid: str | None = None
@@ -228,10 +242,10 @@ class Account:
             self.locale = self.__default_locale
         html_response = response.content.decode()
         parser = BeautifulSoup(html_response, "lxml")
-        username = parser.find("div", {"class": "user-link-name"})
-        if not username:
+        username_element = parser.find("div", {"class": "user-link-name"})
+        if not username_element:
             raise exceptions.UnauthorizedError(response)
-        self.username = username.text
+        self.username = username_element.text
         self.app_data = json.loads(parser.find("body").get("data-app-data"))
         self.__locale = self.app_data.get("locale")
         self.id = self.app_data["userId"]
@@ -239,11 +253,11 @@ class Account:
         self._logout_link = parser.find("a", class_="menu-item-logout").get("href")
         active_sales = parser.find("span", {"class": "badge badge-trade"})
         self.active_sales = int(active_sales.text) if active_sales else 0
-        balance = parser.find("span", class_="badge badge-balance")
-        if balance:
-            balance, currency = balance.text.rsplit(" ", maxsplit=1)
-            self.total_balance = int(balance.replace(" ", ""))
-            self.currency = parse_currency(currency)
+        balance_element = parser.find("span", class_="badge badge-balance")
+        if balance_element:
+            balance_str, currency_str = balance_element.text.rsplit(" ", maxsplit=1)
+            self.total_balance = int(balance_str.replace(" ", ""))
+            self.currency = parse_currency(currency_str)
         else:
             self.total_balance = 0
         active_purchases = parser.find("span", {"class": "badge badge-orders"})
@@ -484,11 +498,12 @@ class Account:
 
         self.__update_csrf_token(parser)
 
-        balances = parser.find("select", {"name": "method"})
-        balance = types.Balance(float(balances["data-balance-total-rub"]), float(balances["data-balance-rub"]),
-                                float(balances["data-balance-total-usd"]), float(balances["data-balance-usd"]),
-                                float(balances["data-balance-total-eur"]), float(balances["data-balance-eur"]))
-        return balance
+        balances_element = parser.find("select", {"name": "method"})
+        balance_obj = types.Balance(float(balances_element["data-balance-total-rub"]), float(balances_element["data-balance-rub"]),
+                                float(balances_element["data-balance-total-usd"]), float(balances_element["data-balance-usd"]),
+                                float(balances_element["data-balance-total-eur"]), float(balances_element["data-balance-eur"]))
+        self.balance = balance_obj
+        return balance_obj
 
     def get_chat_history(self, chat_id: int | str, last_message_id: int = 99999999999999999999999,
                          interlocutor_username: Optional[str] = None, from_id: int = 0) -> list[types.Message]:
@@ -1090,6 +1105,7 @@ class Account:
         banned = bool(parser.find("span", {"class": "label label-danger"}))
         user_obj = types.UserProfile(user_id, username, avatar_link, "Онлайн" in user_status or "Online" in user_status,
                                      banned, html_response)
+        user_obj.last_update_dt = datetime.now() #Добавляем время обновления
 
         subcategories_divs = parser.find_all("div", {"class": "offer-list-title-container"})
 
@@ -1490,7 +1506,7 @@ class Account:
             id1, id2 = sorted([buyer_id, self.id])
             chat_id = f"users-{id1}-{id2}"
             order_obj = types.OrderShortcut(order_id, description, price, currency, buyer_username, buyer_id, chat_id,
-                                            order_status, order_date, subcategory_name, subcategory, str(div))
+                                            order_status, order_date, subcategory_name, subcategory, str(div), self.name)
             sales.append(order_obj)
 
         return next_order_id, sales, locale, sudcategories
@@ -2185,4 +2201,4 @@ class Account:
         if self.__locale != new_locale and new_locale in ("ru", "en", "uk"):
             self.__set_locale = new_locale
 
-# END OF FILE FunPayCortex/FunPayAPI/account.py
+# END OF FILE FunPayCortex-main/FunPayAPI/account.py

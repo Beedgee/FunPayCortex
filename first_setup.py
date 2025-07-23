@@ -1,3 +1,5 @@
+# START OF FILE FunPayCortex-main/first_setup.py
+
 """
 В данном модуле написана подпрограмма первичной настройки FunPayCortex.
 """
@@ -10,9 +12,15 @@ from colorama import Fore, Style
 from Utils.cortex_tools import validate_proxy, hash_password
 
 default_config = {
-    "FunPay": {
+    "FunPayAccounts": {
+        "Default": ""
+    },
+    "FunPayAccount_Default": {
         "golden_key": "",
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "enabled": "1"
+    },
+    "FunPay": {
         "autoRaise": "0",
         "autoResponse": "0",
         "autoDelivery": "0",
@@ -29,11 +37,9 @@ default_config = {
         "secretKeyHash": "УстановитеСвойПароль",
         "blockLogin": "0"
     },
-
     "Manager": {
         "registration_key": ""
     },
-
     "BlockList": {
         "blockDelivery": "0",
         "blockResponse": "0",
@@ -41,7 +47,6 @@ default_config = {
         "blockNewOrderNotification": "0",
         "blockCommandNotification": "0"
     },
-
     "NewMessageView": {
         "includeMyMessages": "1",
         "includeFPMessages": "1",
@@ -51,20 +56,17 @@ default_config = {
         "notifyOnlyBotMessages": "0",
         "showImageName": "1"
     },
-
     "Greetings": {
         "ignoreSystemMessages": "0",
         "sendGreetings": "0",
         "greetingsText": "Привет, $chat_name!",
         "greetingsCooldown": "2"
     },
-
     "OrderConfirm": {
         "watermark": "1",
         "sendReply": "0",
         "replyText": "$username, спасибо за подтверждение заказа $order_id!\nЕсли не сложно, оставь, пожалуйста, отзыв!"
     },
-
     "ReviewReply": {
         "star1Reply": "0",
         "star2Reply": "0",
@@ -77,7 +79,6 @@ default_config = {
         "star4ReplyText": "",
         "star5ReplyText": "",
     },
-
     "Proxy": {
         "enable": "0",
         "ip": "",
@@ -87,13 +88,11 @@ default_config = {
         "check": "0",
         "checkInterval": "3600"
     },
-
     "Other": {
         "watermark": "🧠 𝑭𝒖𝒏𝑷𝒂𝒚 𝑪𝒐𝒓𝒕𝒆𝒙 🤖",
         "requestsDelay": "4",
         "language": "ru"
     },
-
     "OrderControl": {
         "notify_pending_execution": "1",
         "pending_execution_threshold_m": "60",
@@ -121,7 +120,7 @@ def create_config_obj(settings) -> ConfigParser:
 
     :return: объект конфига.
     """
-    config = ConfigParser(delimiters=(":",), interpolation=None)
+    config = ConfigParser(delimiters=(":",), interpolation=None, allow_no_value=True)
     config.optionxform = str
     config.read_dict(settings)
     return config
@@ -153,25 +152,25 @@ def first_setup():
         golden_key = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
         if len(golden_key) != 32:
             print(
-                f"\n{Fore.CYAN}{Style.BRIGHT}Неверный формат токена. Попробуй еще раз! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+                f"\n{Fore.CYAN}{Style.BRIGHT}Неверный формат токена. Попробуй еще раз! {Fore.RED}\\(!!˚0˚)/{Style.RESET_ALL}")
             continue
-        config.set("FunPay", "golden_key", golden_key)
+        config.set("FunPayAccount_Default", "golden_key", golden_key)
         break
 
     while True:
         print(f"\n{Fore.MAGENTA}{Style.BRIGHT}┌── {Fore.CYAN}"
               f"Если хочешь, ты можешь указать свой User-agent (введи в Google \"my user agent\"). Или можешь просто нажать Enter. "
-              f"{Fore.RED}¯\(°_o)/¯{Style.RESET_ALL}")
+              f"{Fore.RED}¯\\_(°_o)_/¯{Style.RESET_ALL}")
         user_agent = input(f"{Fore.MAGENTA}{Style.BRIGHT}└───> {Style.RESET_ALL}").strip()
         if contains_russian(user_agent):
             print(
-                f"\n{Fore.CYAN}{Style.BRIGHT}User-agent обычно не содержит русских букв. Уверен? Если да, введи еще раз, или оставь пустым. {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+                f"\n{Fore.CYAN}{Style.BRIGHT}User-agent обычно не содержит русских букв. Уверен? Если да, введи еще раз, или оставь пустым. {Fore.RED}\\(!!˚0˚)/{Style.RESET_ALL}")
             confirm_ua = input(f"{Fore.MAGENTA}{Style.BRIGHT}Повтори User-agent или нажми Enter, чтобы пропустить: {Style.RESET_ALL}").strip()
             if confirm_ua != user_agent and confirm_ua != "":
                 continue
             user_agent = confirm_ua
         if user_agent:
-            config.set("FunPay", "user_agent", user_agent)
+            config.set("FunPayAccount_Default", "user_agent", user_agent)
         break
 
     while True:
@@ -188,7 +187,7 @@ def first_setup():
             s = ""
             if str(ex):
                 s = f" ({str(ex)})"
-            print(f"\n{Fore.CYAN}{Style.BRIGHT}Ошибка проверки токена. Попробуй еще раз!{s} {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}{Style.BRIGHT}Ошибка проверки токена. Попробуй еще раз!{s} {Fore.RED}\\(!!˚0˚)/{Style.RESET_ALL}")
             continue
         break
 
@@ -202,7 +201,7 @@ def first_setup():
                 any(c.isupper() for c in password) and
                 any(c.isdigit() for c in password)):
             print(
-                f"\n{Fore.CYAN}{Style.BRIGHT}Пароль слишком простой или не соответствует требованиям. Попробуй еще раз! {Fore.RED}\(!!˚0˚)/{Style.RESET_ALL}")
+                f"\n{Fore.CYAN}{Style.BRIGHT}Пароль слишком простой или не соответствует требованиям. Попробуй еще раз! {Fore.RED}\\(!!˚0˚)/{Style.RESET_ALL}")
             continue
         break
 
@@ -247,3 +246,5 @@ def first_setup():
         config.write(f)
     create_configs() 
     time.sleep(10)
+
+# END OF FILE FunPayCortex-main/first_setup.py

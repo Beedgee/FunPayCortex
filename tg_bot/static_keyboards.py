@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/static_keyboards.py
+# START OF FILE FunPayCortex-main/tg_bot/static_keyboards.py
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -23,7 +23,7 @@ def REFRESH_BTN() -> K:
         B(_("gl_refresh"), callback_data=CBT.UPDATE_PROFILE)
     )
 
-def ADV_PROFILE_STATS_BTN() -> K:
+def ADV_PROFILE_STATS_BTN(account_name: str) -> K:
     return K().row(
         B(_("gl_back"), callback_data=f"{CBT.STATS_MENU}:main"),
         B(_("gl_configure"), callback_data=f"{CBT.STATS_CONFIG_MENU}:main"),
@@ -34,6 +34,7 @@ def ADV_PROFILE_STATS_BTN() -> K:
 def SETTINGS_SECTIONS(cortex_instance: "Cortex", user_id: int) -> K:
     user_role = utils.get_user_role(cortex_instance.telegram.authorized_users, user_id)
     kb = K() \
+        .add(B(_("mm_accounts"), callback_data=f"{CBT.ACCOUNTS_LIST}:0")) \
         .add(B(_("mm_language"), callback_data=f"{CBT.CATEGORY}:lang")) \
         .add(B(_("mm_autoresponse"), callback_data=f"{CBT.CATEGORY}:ar")) \
         .add(B(_("mm_autodelivery"), callback_data=f"{CBT.CATEGORY}:ad")) \
@@ -69,32 +70,48 @@ def SETTINGS_SECTIONS_2(cortex_instance: "Cortex", user_id: int) -> K:
     kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
     return kb
 
-
 def AR_SETTINGS() -> K:
-    return K() \
-        .add(B(_("ar_edit_commands"), callback_data=f"{CBT.CMD_LIST}:0")) \
-        .add(B(_("ar_add_command"), callback_data=CBT.ADD_CMD)) \
-        .add(B(_("gl_back"), callback_data=CBT.MAIN))
-
+    """
+    Генерирует клавиатуру настроек автоответчика.
+    """
+    kb = K(row_width=2)
+    buttons = [
+        B(_("ar_edit_commands"), callback_data=f"{CBT.CMD_LIST}:0"),
+        B(_("ar_add_command"), callback_data=CBT.ADD_CMD)
+    ]
+    kb.add(*buttons)
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
+    return kb
 
 def AD_SETTINGS() -> K:
-    return K() \
-        .add(B(_("ad_edit_autodelivery"), callback_data=f"{CBT.AD_LOTS_LIST}:0")) \
-        .add(B(_("ad_add_autodelivery"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0")) \
-        .add(B(_("ad_edit_goods_file"), callback_data=f"{CBT.PRODUCTS_FILES_LIST}:0")) \
-        .row(B(_("ad_upload_goods_file"), callback_data=CBT.UPLOAD_PRODUCTS_FILE),
-             B(_("ad_create_goods_file"), callback_data=CBT.CREATE_PRODUCTS_FILE)) \
-        .add(B(_("gl_back"), callback_data=CBT.MAIN))
-
+    """
+    Генерирует клавиатуру настроек автовыдачи.
+    """
+    kb = K(row_width=2)
+    buttons = [
+        B(_("ad_edit_autodelivery"), callback_data=f"{CBT.AD_LOTS_LIST}:0"),
+        B(_("ad_add_autodelivery"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0"),
+        B(_("ad_edit_goods_file"), callback_data=f"{CBT.PRODUCTS_FILES_LIST}:0")
+    ]
+    kb.add(*buttons)
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
+    return kb
 
 def CONFIGS_UPLOADER() -> K:
-    return K() \
-        .add(B("📥 " + _("cfg_download_main"), callback_data=f"{CBT.DOWNLOAD_CFG}:main")) \
-        .add(B("📥 " + _("cfg_download_ar"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoResponse")) \
-        .add(B("📥 " + _("cfg_download_ad"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoDelivery")) \
-        .add(B("📤 " + _("cfg_upload_main"), callback_data="upload_main_config")) \
-        .add(B("📤 " + _("cfg_upload_ar"), callback_data="upload_auto_response_config")) \
-        .add(B("📤 " + _("cfg_upload_ad"), callback_data="upload_auto_delivery_config")) \
-        .add(B(_("gl_back"), callback_data=CBT.MAIN2))
+    """
+    Генерирует клавиатуру загрузки / выгрузки конфигов.
+    """
+    kb = K(row_width=2)
+    buttons = [
+        B(_("cfg_download_main"), callback_data=f"{CBT.DOWNLOAD_CFG}:main"),
+        B(_("cfg_upload_main"), callback_data="upload_main_config"),
+        B(_("cfg_download_ar"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoResponse"),
+        B(_("cfg_upload_ar"), callback_data="upload_auto_response_config"),
+        B(_("cfg_download_ad"), callback_data=f"{CBT.DOWNLOAD_CFG}:autoDelivery"),
+        B(_("cfg_upload_ad"), callback_data="upload_auto_delivery_config")
+    ]
+    kb.add(*buttons)
+    kb.add(B(_("gl_back"), callback_data=CBT.MAIN2))
+    return kb
 
-# END OF FILE FunPayCortex/tg_bot/static_keyboards.py
+# END OF FILE FunPayCortex-main/tg_bot/static_keyboards.py

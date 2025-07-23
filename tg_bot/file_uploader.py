@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/tg_bot/file_uploader.py
+# START OF FILE FunPayCortex-main/tg_bot/file_uploader.py
 
 """
 В данном модуле реализован загрузчик файлов из телеграм чата.
@@ -288,13 +288,14 @@ def init_uploader(cortex_instance: Cortex):
             logger.warning(f"Попытка отправить изображение в FunPay без активного состояния для пользователя {m.from_user.id}")
             return
 
-        node_id = state_data["data"].get("node_id")
-        username = state_data["data"].get("username")
+        account_name, node_id, username = (state_data["data"].get("account_name"),
+                                           state_data["data"].get("node_id"),
+                                           state_data["data"].get("username"))
         tg.clear_state(m.chat.id, m.from_user.id, True)
 
-        if node_id is None or username is None:
-            logger.error(f"Отсутствуют node_id или username в состоянии для отправки изображения FunPay (user: {m.from_user.id})")
-            tg.bot.reply_to(m, _("gl_error_try_again"))
+        target_account = cortex_instance.accounts.get(account_name)
+        if not target_account:
+            tg.bot.reply_to(m, _("gl_error_try_again") + f" (account {account_name} not found)")
             return
 
         if not m.photo:
@@ -312,13 +313,13 @@ def init_uploader(cortex_instance: Cortex):
             downloaded_image_bytes = tg.bot.download_file(file_info.file_path)
 
             tg.bot.edit_message_text("📤 Загружаю изображение на FunPay...", progress_msg_upload.chat.id, progress_msg_upload.id)
-            image_id_on_fp = tg.cortex.account.upload_image(downloaded_image_bytes, type_="chat")
+            image_id_on_fp = target_account.upload_image(downloaded_image_bytes, type_="chat")
 
             tg.bot.edit_message_text("✉️ Отправляю сообщение с изображением...", progress_msg_upload.chat.id, progress_msg_upload.id)
-            send_result = tg.cortex.account.send_message(node_id, None, username, image_id=image_id_on_fp)
+            send_result = target_account.send_message(node_id, None, username, image_id=image_id_on_fp)
             tg.bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id)
 
-            reply_keyboard_after_send = keyboards.reply(node_id, username, again=True, extend=True)
+            reply_keyboard_after_send = keyboards.reply(node_id, username, again=True, extend=True, account_name=account_name)
             if not send_result:
                 tg.bot.reply_to(m, _("msg_sending_error", node_id, username), reply_markup=reply_keyboard_after_send)
                 return
@@ -326,14 +327,19 @@ def init_uploader(cortex_instance: Cortex):
         except Exception as e:
             if 'progress_msg_upload' in locals() and progress_msg_upload:
                  tg.bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id)
-            logger.error(f"Ошибка при отправке изображения в чат FunPay {node_id}: {e}")
+            logger.error(f"Ошибка при отправке изображения в чат FunPay {node_id} (аккаунт: {account_name}): {e}")
             logger.debug("TRACEBACK", exc_info=True)
             tg.bot.reply_to(m, _("image_upload_error_generic"),
-                         reply_markup=keyboards.reply(node_id, username, again=True, extend=True))
+                         reply_markup=keyboards.reply(node_id, username, again=True, extend=True, account_name=account_name))
             return
 
     def upload_image_generic_handler(tg: TGBot, m: types.Message, image_type: Literal["chat", "offer"]):
         tg.clear_state(m.chat.id, m.from_user.id, True)
+        active_account = tg.get_active_account(m.from_user.id)
+        if not active_account:
+            tg.bot.reply_to(m, _("no_active_fp_account"))
+            return
+
         if not m.photo:
             tg.bot.send_message(m.chat.id, _("image_upload_unsupported_format"))
             return
@@ -348,13 +354,13 @@ def init_uploader(cortex_instance: Cortex):
             file_info = tg.bot.get_file(photo_obj.file_id)
             downloaded_image_bytes = tg.bot.download_file(file_info.file_path)
             
-            tg.bot.edit_message_text(f"📤 Загружаю изображение ({image_type}) на FunPay...", progress_msg_upload.chat.id, progress_msg_upload.id)
-            image_id_on_fp = tg.cortex.account.upload_image(downloaded_image_bytes, type_=image_type)
+            tg.bot.edit_message_text(f"📤 Загружаю изображение ({image_type}) на FunPay от имени {active_account.name}...", progress_msg_upload.chat.id, progress_msg_upload.id)
+            image_id_on_fp = active_account.upload_image(downloaded_image_bytes, type_=image_type)
             tg.bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id)
         except Exception as e:
             if 'progress_msg_upload' in locals() and progress_msg_upload:
                  tg.bot.delete_message(progress_msg_upload.chat.id, progress_msg_upload.id)
-            logger.error(f"Ошибка при выгрузке изображения типа '{image_type}': {e}")
+            logger.error(f"Ошибка при выгрузке изображения типа '{image_type}' (аккаунт: {active_account.name}): {e}")
             logger.debug("TRACEBACK", exc_info=True)
             tg.bot.reply_to(m, _("image_upload_error_generic"))
             return
@@ -388,4 +394,4 @@ def init_uploader(cortex_instance: Cortex):
 
 
 BIND_TO_PRE_INIT = [init_uploader]
-# END OF FILE FunPayCortex/tg_bot/file_uploader.py
+# END OF FILE FunPayCortex-main/tg_bot/file_uploader.py

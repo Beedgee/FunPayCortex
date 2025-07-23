@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex/main.py
+# START OF FILE FunPayCortex-main/main.py
 
 import time
 from pip._internal.cli.main import main
@@ -35,7 +35,7 @@ logo = r"""
      \/                      \/                        \/      \/                                             
 """
 
-VERSION = "1.1.16.3"
+VERSION = "1.2.0.0-multi-account" # Новая версия
 
 Utils.cortex_tools.set_console_title(f"FunPay Cortex v{VERSION}")
 
@@ -95,6 +95,8 @@ if sys.platform == "linux" and os.getenv('FPCORTEX_IS_RUNNING_AS_SERVICE', '0') 
 try:
     logger.info("$MAGENTAЗагружаю конфиг _main.cfg...")
     MAIN_CFG = cfg_loader.load_main_config("configs/_main.cfg")
+    FP_ACCOUNTS = cfg_loader.get_funpay_accounts(MAIN_CFG)
+    
     localizer = Localizer(MAIN_CFG["Other"]["language"])
     _ = localizer.translate
 
@@ -125,7 +127,7 @@ except:
 localizer = Localizer(MAIN_CFG["Other"]["language"])
 
 try:
-    Cortex(MAIN_CFG, AD_CFG, AR_CFG, RAW_AR_CFG, VERSION).init().run()
+    Cortex(MAIN_CFG, FP_ACCOUNTS, AD_CFG, AR_CFG, RAW_AR_CFG, VERSION).init().run()
 except KeyboardInterrupt:
     logger.info("Завершаю программу...")
     sys.exit()
@@ -136,4 +138,4 @@ except:
     time.sleep(5)
     sys.exit()
 
-# END OF FILE FunPayCortex/main.py
+# END OF FILE FunPayCortex-main/main.py

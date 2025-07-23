@@ -9,9 +9,10 @@ from FunPayAPI.types import WithdrawHistory, WithdrawItem
 
 if TYPE_CHECKING:
     from configparser import ConfigParser
+    import FunPayAPI
 
 from tg_bot import auto_response_cp, config_loader_cp, auto_delivery_cp, templates_cp, plugins_cp, file_uploader, \
-    authorized_users_cp, proxy_cp, default_cp, statistics_cp, crm_cp, order_control_cp
+    authorized_users_cp, proxy_cp, default_cp, statistics_cp, crm_cp, order_control_cp, accounts_cp
 from types import ModuleType
 import Utils.exceptions
 from uuid import UUID
@@ -77,6 +78,7 @@ class Cortex(object):
         return getattr(cls, "instance")
 
     def __init__(self, main_config: ConfigParser,
+                 fp_accounts: dict[str, dict],
                  auto_delivery_config: ConfigParser,
                  auto_response_config: ConfigParser,
                  raw_auto_response_config: ConfigParser,
@@ -88,6 +90,7 @@ class Cortex(object):
         self.delivery_tests = {}
 
         self.MAIN_CFG = main_config
+        self.FP_ACCOUNTS_CFG = fp_accounts
         self.AD_CFG = auto_delivery_config
         self.AR_CFG = auto_response_config
         self.RAW_AR_CFG = raw_auto_response_config
@@ -107,30 +110,17 @@ class Cortex(object):
                 if self.MAIN_CFG["Proxy"].getboolean("check") and not cortex_tools.check_proxy(self.proxy):
                     sys.exit()
 
-        self.account = FunPayAPI.Account(self.MAIN_CFG["FunPay"]["golden_key"],
-                                         self.MAIN_CFG["FunPay"]["user_agent"],
-                                         proxy=self.proxy,
-                                         locale=self.MAIN_CFG["FunPay"].get("locale", "ru"))
-        self.runner: FunPayAPI.Runner | None = None
+        self.accounts: dict[str, FunPayAPI.Account] = {}
         self.telegram: tg_bot.bot.TGBot | None = None
         self.running = False
         self.run_id = 0
         self.start_time = int(time.time())
-        self.balance: FunPayAPI.types.Balance | None = None
         self.sales_history = []
         self.initial_scan_complete = False
         self.withdrawal_forecast = {}
         self.base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
-        self.raise_time = {}
-        self.raised_time = {}
+        
         self.__exchange_rates = {}
-        self.profile: FunPayAPI.types.UserProfile | None = None
-        self.tg_profile: FunPayAPI.types.UserProfile | None = None
-        self.last_tg_profile_update = datetime.datetime.now()
-        self.curr_profile: FunPayAPI.types.UserProfile | None = None
-        self.curr_profile_last_tag: str | None = None
-        self.profile_last_tag: str | None = None
-        self.last_state_change_tag: str | None = None
         self.blacklist = cortex_tools.load_blacklist()
         self.old_users = cortex_tools.load_old_users(
             float(self.MAIN_CFG["Greetings"]["greetingsCooldown"]))
@@ -194,159 +184,168 @@ class Cortex(object):
         except IOError as e:
             logger.error(f"Ошибка сохранения кэша подтвержденных заказов: {e}")
 
-    def __init_account(self) -> None:
-        while True:
-            try:
-                self.account.get()
-                self.balance = self.get_balance()
-                greeting_text = cortex_tools.create_greeting_text(self)
-                cortex_tools.set_console_title(f"FunPay Cortex - {self.account.username} ({self.account.id})")
-                for line in greeting_text.split("\n"):
-                    logger.info(line)
-                break
-            except TimeoutError:
-                logger.error(_("crd_acc_get_timeout_err"))
-            except (FunPayAPI.exceptions.UnauthorizedError, FunPayAPI.exceptions.RequestFailedError) as e:
-                logger.error(e.short_str())
-                logger.debug(f"TRACEBACK {e.short_str()}", exc_info=True)
-            except Exception as e:
-                logger.error(_("crd_acc_get_unexpected_err") + f": {e}")
-                logger.debug("TRACEBACK", exc_info=True)
-            logger.warning(_("crd_try_again_in_n_secs", 2))
-            time.sleep(2)
+    def __init_accounts(self) -> None:
+        """Инициализирует все включенные аккаунты."""
+        for name, cfg in self.FP_ACCOUNTS_CFG.items():
+            if not cfg["enabled"]:
+                logger.info(f"Аккаунт '{name}' отключен в конфигурации.")
+                continue
 
-    def __update_profile(self, infinite_polling: bool = True, attempts: int = 0, update_telegram_profile: bool = True,
-                         update_main_profile: bool = True) -> bool:
-        logger.info(_("crd_getting_profile_data"))
+            account = FunPayAPI.Account(name, cfg["golden_key"], cfg["user_agent"],
+                                        proxy=self.proxy,
+                                        locale=self.MAIN_CFG["FunPay"].get("locale", "ru"))
+            self.accounts[name] = account
+
+            logger.info(f"Инициализация аккаунта '{name}'...")
+            init_success = False
+            while not init_success:
+                try:
+                    account.get()
+                    account.balance = self.get_balance(account)
+                    greeting_text = cortex_tools.create_greeting_text(self, account)
+                    for line in greeting_text.split("\n"):
+                        logger.info(line)
+                    init_success = True
+                except TimeoutError:
+                    logger.error(_("crd_acc_get_timeout_err") + f" (аккаунт: {name})")
+                except (FunPayAPI.exceptions.UnauthorizedError, FunPayAPI.exceptions.RequestFailedError) as e:
+                    logger.error(f"Аккаунт '{name}': {e.short_str()}")
+                    logger.debug(f"TRACEBACK (аккаунт: {name})", exc_info=True)
+                    break 
+                except Exception as e:
+                    logger.error(_("crd_acc_get_unexpected_err") + f" (аккаунт: {name}): {e}")
+                    logger.debug("TRACEBACK", exc_info=True)
+                
+                if not init_success:
+                    logger.warning(_("crd_try_again_in_n_secs", 2))
+                    time.sleep(2)
+        
+        if not self.accounts:
+            logger.critical("Не найдено ни одного включенного аккаунта FunPay. Завершение работы...")
+            sys.exit(1)
+        
+        main_account_name = next(iter(self.accounts))
+        cortex_tools.set_console_title(f"FunPay Cortex ({len(self.accounts)} акк.) - {main_account_name}")
+
+
+    def __update_profile(self, account: FunPayAPI.Account, infinite_polling: bool = True, attempts: int = 0) -> bool:
+        logger.info(_("crd_getting_profile_data") + f" (аккаунт: {account.name})")
         current_attempts = 0
         max_attempts = attempts if not infinite_polling else float('inf')
         profile = None
         while current_attempts < max_attempts:
             try:
-                profile = self.account.get_user(self.account.id)
+                profile = account.get_user(account.id)
                 break
             except TimeoutError:
-                logger.error(_("crd_profile_get_timeout_err"))
+                logger.error(_("crd_profile_get_timeout_err") + f" (аккаунт: {account.name})")
             except FunPayAPI.exceptions.RequestFailedError as e:
-                logger.error(e.short_str())
+                logger.error(f"Аккаунт '{account.name}': {e.short_str()}")
                 logger.debug("TRACEBACK", exc_info=True)
             except Exception as e:
-                logger.error(_("crd_profile_get_unexpected_err") + f": {e}")
+                logger.error(_("crd_profile_get_unexpected_err") + f" (аккаунт: {account.name}): {e}")
                 logger.debug("TRACEBACK", exc_info=True)
             current_attempts += 1
             if current_attempts >= max_attempts and not infinite_polling:
-                 logger.error(_("crd_profile_get_too_many_attempts_err", attempts))
+                 logger.error(_("crd_profile_get_too_many_attempts_err", attempts) + f" (аккаунт: {account.name})")
                  return False
             logger.warning(_("crd_try_again_in_n_secs", 2))
             time.sleep(2)
         else:
             if not infinite_polling:
-                logger.error(_("crd_profile_get_too_many_attempts_err", attempts))
+                logger.error(_("crd_profile_get_too_many_attempts_err", attempts) + f" (аккаунт: {account.name})")
                 return False
-            logger.critical("Критическая ошибка в логике __update_profile с infinite_polling.")
+            logger.critical(f"Критическая ошибка в логике __update_profile с infinite_polling (аккаунт: {account.name}).")
             return False
 
         if profile is None:
-            logger.error("Не удалось получить профиль пользователя после всех попыток в __update_profile.")
+            logger.error(f"Не удалось получить профиль пользователя после всех попыток в __update_profile (аккаунт: {account.name}).")
             return False
 
-        if update_main_profile:
-            self.profile = profile
-            self.curr_profile = profile
-            logger.info(_("crd_profile_updated", len(profile.get_lots()), len(profile.get_sorted_lots(2))))
-        if update_telegram_profile:
-            self.tg_profile = profile
-            self.last_tg_profile_update = datetime.datetime.now()
-            logger.info(_("crd_tg_profile_updated", len(profile.get_lots()), len(profile.get_sorted_lots(2))))
+        account.profile = profile
+        logger.info(_("crd_profile_updated", len(profile.get_lots()), len(profile.get_sorted_lots(2))) + f" (аккаунт: {account.name})")
         return True
 
     def __init_telegram(self) -> None:
         self.telegram = tg_bot.bot.TGBot(self)
         self.telegram.init()
 
-    def get_balance(self, attempts: int = 3) -> FunPayAPI.types.Balance:
-        subcategories = self.account.get_sorted_subcategories()[FunPayAPI.enums.SubCategoryTypes.COMMON]
+    def get_balance(self, account: FunPayAPI.Account, attempts: int = 3) -> FunPayAPI.types.Balance:
+        subcategories = account.get_sorted_subcategories()[FunPayAPI.enums.SubCategoryTypes.COMMON]
         lots = []
         if not subcategories:
-             raise Exception("Нет общих подкатегорий для определения баланса.")
+             raise Exception(f"Нет общих подкатегорий для определения баланса на аккаунте {account.name}.")
         current_attempts = 0
         while current_attempts < attempts:
             try:
                 subcat_id = random.choice(list(subcategories.keys()))
-                lots = self.account.get_subcategory_public_lots(FunPayAPI.enums.SubCategoryTypes.COMMON, subcat_id)
+                lots = account.get_subcategory_public_lots(FunPayAPI.enums.SubCategoryTypes.COMMON, subcat_id)
                 if lots:
                     break
             except Exception as e:
-                 logger.warning(f"Ошибка получения лотов для проверки баланса (ПодКат ID: {subcat_id}): {e}")
+                 logger.warning(f"Ошибка получения лотов для проверки баланса (Аккаунт: {account.name}, ПодКат ID: {subcat_id}): {e}")
                  logger.debug("TRACEBACK", exc_info=True)
                  time.sleep(1)
             current_attempts +=1
         if not lots:
-             raise Exception(f"Не удалось найти публичные лоты для определения баланса после {attempts} попыток.")
-        balance = self.account.get_balance(random.choice(lots).id)
+             raise Exception(f"Не удалось найти публичные лоты для определения баланса на аккаунте {account.name} после {attempts} попыток.")
+        
+        balance = account.get_balance(random.choice(lots).id)
         return balance
 
-    def raise_lots(self) -> int:
+    def raise_lots_for_account(self, account: FunPayAPI.Account) -> int:
         next_call = float("inf")
-        unique_categories = []
-        seen_category_ids = set()
-        if not self.profile or not self.profile.get_lots():
-            logger.info("Нет лотов в профиле для поднятия. Пропуск цикла поднятия.")
+        if not account.profile or not account.profile.get_lots():
+            logger.info(f"Нет лотов в профиле для поднятия. Пропуск цикла поднятия для аккаунта '{account.name}'.")
             return 300
-
-        for subcat_obj in self.profile.get_sorted_lots(2).keys():
-            if subcat_obj.category.id not in seen_category_ids:
-                unique_categories.append(subcat_obj.category)
-                seen_category_ids.add(subcat_obj.category.id)
-        sorted_categories_to_raise = sorted(unique_categories, key=lambda cat: cat.position)
+        
+        unique_categories = {lot.subcategory.category for lot in account.profile.get_lots() if lot.subcategory}
+        sorted_categories_to_raise = sorted(list(unique_categories), key=lambda cat: cat.position)
 
         for category_obj in sorted_categories_to_raise:
-            if (saved_raise_time := self.raise_time.get(category_obj.id)) and saved_raise_time > int(time.time()):
+            if (saved_raise_time := account.raise_time.get(category_obj.id)) and saved_raise_time > int(time.time()):
                 next_call = min(next_call, saved_raise_time)
                 continue
 
-            active_common_subcategories_in_game = []
-            for sub_category_obj_from_profile, lots_dict_in_subcategory in self.profile.get_sorted_lots(2).items():
-                if sub_category_obj_from_profile.category.id == category_obj.id and \
-                   sub_category_obj_from_profile.type == SubCategoryTypes.COMMON and \
-                   lots_dict_in_subcategory:
-                    active_common_subcategories_in_game.append(sub_category_obj_from_profile)
-            unique_common_subcats = list(set(sc.id for sc in active_common_subcategories_in_game))
-
-            if not unique_common_subcats:
-                logger.debug(f"У категории '{category_obj.name}' нет активных COMMON лотов для поднятия, пропускаем.")
-                self.raise_time[category_obj.id] = int(time.time()) + 7200
-                next_call = min(next_call, self.raise_time[category_obj.id])
+            subcats_in_game_to_raise = {lot.subcategory for lot in account.profile.get_lots()
+                                        if lot.subcategory and lot.subcategory.category.id == category_obj.id and
+                                           lot.subcategory.type == SubCategoryTypes.COMMON}
+            
+            if not subcats_in_game_to_raise:
+                logger.debug(f"У категории '{category_obj.name}' (аккаунт: {account.name}) нет активных COMMON лотов для поднятия, пропускаем.")
+                account.raise_time[category_obj.id] = int(time.time()) + 7200
+                next_call = min(next_call, account.raise_time[category_obj.id])
                 continue
 
             raise_ok = False
             time_delta_str = ""
-
             try:
                 time.sleep(random.uniform(0.5, 1.5))
-                self.account.raise_lots(category_obj.id, subcategories=unique_common_subcats)
-                logger.info(_("crd_lots_raised", category_obj.name))
+                account.raise_lots(category_obj.id, subcategories=list(subcats_in_game_to_raise))
+                logger.info(_("crd_lots_raised", category_obj.name) + f" (аккаунт: {account.name})")
                 raise_ok = True
-                last_raised_timestamp = self.raised_time.get(category_obj.id)
+                
+                last_raised_timestamp = account.raised_time.get(category_obj.id)
                 current_timestamp = int(time.time())
-                self.raised_time[category_obj.id] = current_timestamp
+                account.raised_time[category_obj.id] = current_timestamp
                 if last_raised_timestamp:
                     time_delta_str = f" Последнее поднятие: {cortex_tools.time_to_str(current_timestamp - last_raised_timestamp)} назад."
+                
                 next_raise_attempt_time = current_timestamp + 7200
-                self.raise_time[category_obj.id] = next_raise_attempt_time
+                account.raise_time[category_obj.id] = next_raise_attempt_time
                 next_call = min(next_call, next_raise_attempt_time)
             except FunPayAPI.exceptions.RaiseError as e:
                 error_text_msg = e.error_message if e.error_message else "Неизвестная ошибка FunPay."
                 wait_duration = e.wait_time if e.wait_time is not None else 60
-                logger.warning(_("crd_raise_time_err", category_obj.name, error_text_msg, cortex_tools.time_to_str(wait_duration)))
+                logger.warning(_("crd_raise_time_err", category_obj.name, error_text_msg, cortex_tools.time_to_str(wait_duration)) + f" (аккаунт: {account.name})")
                 next_raise_attempt_time = int(time.time()) + wait_duration
-                self.raise_time[category_obj.id] = next_raise_attempt_time
+                account.raise_time[category_obj.id] = next_raise_attempt_time
                 next_call = min(next_call, next_raise_attempt_time)
             except Exception as e:
                 default_retry_delay = 60
-                error_log_message = _("crd_raise_unexpected_err", category_obj.name)
+                error_log_message = _("crd_raise_unexpected_err", category_obj.name) + f" (аккаунт: {account.name})"
                 if isinstance(e, FunPayAPI.exceptions.RequestFailedError) and e.status_code in (503, 403, 429):
-                    error_log_message = _("crd_raise_status_code_err", e.status_code, category_obj.name)
+                    error_log_message = _("crd_raise_status_code_err", e.status_code, category_obj.name) + f" (аккаунт: {account.name})"
                     default_retry_delay = 120
                 logger.error(error_log_message)
                 logger.debug("TRACEBACK", exc_info=True)
@@ -355,10 +354,11 @@ class Cortex(object):
                 next_call = min(next_call, next_raise_attempt_time)
 
             if raise_ok:
-                self.run_handlers(self.post_lots_raise_handlers, (self, category_obj, time_delta_str))
+                self.run_handlers(self.post_lots_raise_handlers, (self, category_obj, time_delta_str, account))
         return next_call if next_call < float("inf") else 300
 
-    def get_order_from_object(self, obj: types.OrderShortcut | types.Message | types.ChatShortcut,
+
+    def get_order_from_object(self, account: FunPayAPI.Account, obj: types.OrderShortcut | types.Message | types.ChatShortcut,
                               order_id_str: str | None = None) -> None | types.Order:
         if obj._order_attempt_error:
             return None
@@ -396,12 +396,12 @@ class Cortex(object):
 
         for attempt_num in range(3, 0, -1):
             try:
-                fetched_order = self.account.get_order(final_order_id)
+                fetched_order = account.get_order(final_order_id)
                 obj._order = fetched_order
-                logger.info(f"Получена информация о заказе #{final_order_id}")
+                logger.info(f"Получена информация о заказе #{final_order_id} (аккаунт: {account.name})")
                 return fetched_order
             except Exception as e:
-                logger.warning(f"Ошибка при получении заказа #{final_order_id} (попытка {4-attempt_num}): {e}")
+                logger.warning(f"Ошибка при получении заказа #{final_order_id} (аккаунт: {account.name}, попытка {4-attempt_num}): {e}")
                 logger.debug("TRACEBACK", exc_info=True)
                 if attempt_num > 1: time.sleep(random.uniform(0.5, 1.5))
         obj._order_attempt_error = True
@@ -438,7 +438,7 @@ class Cortex(object):
                 entities.extend(self.split_text(text))
         return entities
 
-    def send_message(self, chat_id: int | str, message_text: str, chat_name: str | None = None,
+    def send_message(self, account: FunPayAPI.Account, chat_id: int | str, message_text: str, chat_name: str | None = None,
                      interlocutor_id: int | None = None, attempts: int = 3,
                      watermark: bool = True) -> list[FunPayAPI.types.Message] | None:
         if self.MAIN_CFG["Other"].get("watermark") and watermark and not message_text.strip().startswith("$photo="):
@@ -452,43 +452,43 @@ class Cortex(object):
             while current_attempts:
                 try:
                     if isinstance(entity, str):
-                        msg = self.account.send_message(chat_id, entity, chat_name,
-                                                        interlocutor_id or self.account.interlocutor_ids.get(chat_id),
+                        msg = account.send_message(chat_id, entity, chat_name,
+                                                        interlocutor_id or account.interlocutor_ids.get(chat_id),
                                                         None, not self.old_mode_enabled,
                                                         self.old_mode_enabled,
                                                         self.keep_sent_messages_unread)
                         result.append(msg)
-                        logger.info(_("crd_msg_sent", chat_id))
+                        logger.info(_("crd_msg_sent", chat_id) + f" (аккаунт: {account.name})")
                     elif isinstance(entity, int):
-                        msg = self.account.send_image(chat_id, entity, chat_name,
-                                                      interlocutor_id or self.account.interlocutor_ids.get(chat_id),
+                        msg = account.send_image(chat_id, entity, chat_name,
+                                                      interlocutor_id or account.interlocutor_ids.get(chat_id),
                                                       not self.old_mode_enabled,
                                                       self.old_mode_enabled,
                                                       self.keep_sent_messages_unread)
                         result.append(msg)
-                        logger.info(_("crd_msg_sent", chat_id))
+                        logger.info(_("crd_msg_sent", chat_id) + f" (аккаунт: {account.name})")
                     elif isinstance(entity, float):
                         time.sleep(entity)
                     break
                 except Exception as ex:
-                    logger.warning(_("crd_msg_send_err", chat_id) + f": {ex}")
+                    logger.warning(_("crd_msg_send_err", chat_id) + f" (аккаунт: {account.name}): {ex}")
                     logger.debug("TRACEBACK", exc_info=True)
                     logger.info(_("crd_msg_attempts_left", current_attempts))
                     current_attempts -= 1
                     time.sleep(1)
             else:
-                logger.error(_("crd_msg_no_more_attempts_err", chat_id))
+                logger.error(_("crd_msg_no_more_attempts_err", chat_id) + f" (аккаунт: {account.name})")
                 return []
         return result
 
-    def get_exchange_rate(self, base_currency: types.Currency, target_currency: types.Currency, min_interval: int = 60):
+    def get_exchange_rate(self, account: FunPayAPI.Account, base_currency: types.Currency, target_currency: types.Currency, min_interval: int = 60):
         assert base_currency != types.Currency.UNKNOWN and target_currency != types.Currency.UNKNOWN
         if base_currency == target_currency:
             return 1.0
-        cached_rate, cache_time = self.__exchange_rates.get((base_currency, target_currency), (None, 0))
+        cached_rate, cache_time = self.__exchange_rates.get((account.name, base_currency, target_currency), (None, 0))
         if cached_rate is not None and time.time() < cache_time + min_interval:
             return cached_rate
-        cached_rate_reverse, cache_time_reverse = self.__exchange_rates.get((target_currency, base_currency), (None, 0))
+        cached_rate_reverse, cache_time_reverse = self.__exchange_rates.get((account.name, target_currency, base_currency), (None, 0))
         if cached_rate_reverse is not None and time.time() < cache_time_reverse + min_interval:
             if cached_rate_reverse == 0:
                 logger.error(f"Обратный курс для {target_currency.name} -> {base_currency.name} равен нулю. Невозможно рассчитать курс.")
@@ -497,15 +497,15 @@ class Cortex(object):
 
         for attempt in range(3):
             try:
-                rate_to_base, actual_acc_currency_after_base_req = self.account.get_exchange_rate(base_currency)
+                rate_to_base, actual_acc_currency_after_base_req = account.get_exchange_rate(base_currency)
                 current_time = time.time()
-                self.__exchange_rates[(actual_acc_currency_after_base_req, base_currency)] = (rate_to_base, current_time)
-                if rate_to_base != 0: self.__exchange_rates[(base_currency, actual_acc_currency_after_base_req)] = (1.0 / rate_to_base, current_time)
+                self.__exchange_rates[(account.name, actual_acc_currency_after_base_req, base_currency)] = (rate_to_base, current_time)
+                if rate_to_base != 0: self.__exchange_rates[(account.name, base_currency, actual_acc_currency_after_base_req)] = (1.0 / rate_to_base, current_time)
                 time.sleep(random.uniform(0.5, 1.0))
-                rate_to_target, actual_acc_currency_after_target_req = self.account.get_exchange_rate(target_currency)
+                rate_to_target, actual_acc_currency_after_target_req = account.get_exchange_rate(target_currency)
                 current_time = time.time()
-                self.__exchange_rates[(actual_acc_currency_after_target_req, target_currency)] = (rate_to_target, current_time)
-                if rate_to_target != 0: self.__exchange_rates[(target_currency, actual_acc_currency_after_target_req)] = (1.0 / rate_to_target, current_time)
+                self.__exchange_rates[(account.name, actual_acc_currency_after_target_req, target_currency)] = (rate_to_target, current_time)
+                if rate_to_target != 0: self.__exchange_rates[(account.name, target_currency, actual_acc_currency_after_target_req)] = (1.0 / rate_to_target, current_time)
 
                 if actual_acc_currency_after_base_req == base_currency:
                     final_rate = rate_to_target
@@ -527,40 +527,40 @@ class Cortex(object):
                     raise Exception("Не удалось определить курс из-за непредсказуемой смены валюты аккаунта.")
 
 
-                self.__exchange_rates[(base_currency, target_currency)] = (final_rate, time.time())
-                if final_rate != 0 and final_rate != float('inf'): self.__exchange_rates[(target_currency, base_currency)] = (1.0 / final_rate, time.time())
+                self.__exchange_rates[(account.name, base_currency, target_currency)] = (final_rate, time.time())
+                if final_rate != 0 and final_rate != float('inf'): self.__exchange_rates[(account.name, target_currency, base_currency)] = (1.0 / final_rate, time.time())
                 return final_rate
             except Exception as e:
-                logger.warning(f"Ошибка при получении курса обмена (попытка {attempt + 1}): {e}")
+                logger.warning(f"Ошибка при получении курса обмена (аккаунт: {account.name}, попытка {attempt + 1}): {e}")
                 logger.debug("TRACEBACK", exc_info=True)
                 if attempt < 2: time.sleep(random.uniform(1, 2))
-        logger.error("Не удалось получить курс обмена после нескольких попыток.")
+        logger.error(f"Не удалось получить курс обмена после нескольких попыток (аккаунт: {account.name}).")
         raise Exception("Не удалось получить курс обмена: превышено количество попыток.")
 
-    def update_session(self, attempts: int = 3) -> bool:
+    def update_session(self, account: FunPayAPI.Account, attempts: int = 3) -> bool:
         while attempts:
             try:
-                self.account.get(update_phpsessid=True)
-                self.balance = self.get_balance()
-                logger.info(_("crd_session_updated"))
+                account.get(update_phpsessid=True)
+                account.balance = self.get_balance(account)
+                logger.info(_("crd_session_updated") + f" (аккаунт: {account.name})")
                 return True
             except TimeoutError:
-                logger.warning(_("crd_session_timeout_err"))
+                logger.warning(_("crd_session_timeout_err") + f" (аккаунт: {account.name})")
             except (FunPayAPI.exceptions.UnauthorizedError, FunPayAPI.exceptions.RequestFailedError) as e:
-                logger.error(e.short_str())
+                logger.error(f"Аккаунт '{account.name}': {e.short_str()}")
                 logger.debug("TRACEBACK", exc_info=True)
             except Exception as e:
-                logger.error(_("crd_session_unexpected_err") + f": {e}")
+                logger.error(_("crd_session_unexpected_err") + f" (аккаунт: {account.name}): {e}")
                 logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
             if attempts > 0:
                  logger.warning(_("crd_try_again_in_n_secs", 2))
                  time.sleep(2)
         else:
-            logger.error(_("crd_session_no_more_attempts_err"))
+            logger.error(_("crd_session_no_more_attempts_err") + f" (аккаунт: {account.name})")
             return False
 
-    def process_events(self):
+    def process_events(self, account: FunPayAPI.Account):
         instance_id = self.run_id
         events_handlers = {
             FunPayAPI.events.EventTypes.INITIAL_CHAT: self.init_message_handlers,
@@ -572,40 +572,40 @@ class Cortex(object):
             FunPayAPI.events.EventTypes.NEW_ORDER: self.new_order_handlers,
             FunPayAPI.events.EventTypes.ORDER_STATUS_CHANGED: self.order_status_changed_handlers,
         }
-        for event in self.runner.listen(requests_delay=int(self.MAIN_CFG["Other"]["requestsDelay"])):
+        for event in account.runner.listen(requests_delay=int(self.MAIN_CFG["Other"]["requestsDelay"])):
             if instance_id != self.run_id:
                 break
             self.run_handlers(events_handlers[event.type], (self, event))
 
-    def lots_raise_loop(self):
-        if not self.profile or not self.profile.get_lots():
-            logger.info(_("crd_raise_loop_not_started"))
+    def lots_raise_loop(self, account: FunPayAPI.Account):
+        if not account.profile or not account.profile.get_lots():
+            logger.info(_("crd_raise_loop_not_started") + f" (аккаунт: {account.name})")
             return
-        logger.info(_("crd_raise_loop_started"))
+        logger.info(_("crd_raise_loop_started") + f" (аккаунт: {account.name})")
         while True:
             try:
                 if not self.MAIN_CFG["FunPay"].getboolean("autoRaise"):
                     time.sleep(10)
                     continue
-                next_time = self.raise_lots()
+                next_time = self.raise_lots_for_account(account)
                 delay = next_time - int(time.time())
                 if delay <= 0:
-                    logger.debug(f"Небольшая задержка перед следующим поднятием (delay={delay}).")
+                    logger.debug(f"Небольшая задержка перед следующим поднятием (delay={delay}, аккаунт: {account.name}).")
                     time.sleep(random.uniform(1,3))
                     continue
-                logger.debug(f"Следующее поднятие лотов через: {cortex_tools.time_to_str(delay)}")
+                logger.debug(f"Следующее поднятие лотов для аккаунта {account.name} через: {cortex_tools.time_to_str(delay)}")
                 time.sleep(delay)
             except Exception as e:
-                logger.error(f"Ошибка в цикле поднятия лотов: {e}")
+                logger.error(f"Ошибка в цикле поднятия лотов (аккаунт: {account.name}): {e}")
                 logger.debug("TRACEBACK", exc_info=True)
                 time.sleep(60)
 
-    def update_session_loop(self):
-        logger.info(_("crd_session_loop_started"))
+    def update_session_loop(self, account: FunPayAPI.Account):
+        logger.info(_("crd_session_loop_started") + f" (аккаунт: {account.name})")
         default_sleep_time = 3600
         while True:
             time.sleep(default_sleep_time)
-            self.update_session()
+            self.update_session(account)
 
     def init(self):
         self.add_handlers_from_plugin(handlers)
@@ -616,7 +616,7 @@ class Cortex(object):
             self.__init_telegram()
             for module in [auto_response_cp, auto_delivery_cp, config_loader_cp, templates_cp, plugins_cp,
                            file_uploader, authorized_users_cp, proxy_cp, statistics_cp, crm_cp, order_control_cp,
-                           default_cp]:
+                           accounts_cp, default_cp]:
                 self.add_handlers_from_plugin(module)
         self.run_handlers(self.pre_init_handlers, (self,))
         if self.MAIN_CFG["Telegram"].getboolean("enabled"):
@@ -636,12 +636,16 @@ class Cortex(object):
                 logger.warning(f"Произошла ошибка при изменении информации о боте Telegram: {e}.")
                 logger.debug("TRACEBACK", exc_info=True)
             Thread(target=self.telegram.run, daemon=True).start()
-        self.__init_account()
-        self.runner = FunPayAPI.Runner(self.account,
-                                       disable_message_requests=self.old_mode_enabled,
-                                       disabled_order_requests=False,
-                                       disabled_buyer_viewing_requests=True)
-        self.__update_profile()
+
+        self.__init_accounts()
+
+        for name, account in self.accounts.items():
+            account.runner = FunPayAPI.Runner(account,
+                                           disable_message_requests=self.old_mode_enabled,
+                                           disabled_order_requests=False,
+                                           disabled_buyer_viewing_requests=True)
+            self.__update_profile(account)
+        
         self.run_handlers(self.post_init_handlers, (self,))
         return self
 
@@ -650,38 +654,42 @@ class Cortex(object):
         self.start_time = int(time.time())
         self.run_handlers(self.pre_start_handlers, (self,))
         self.run_handlers(self.post_start_handlers, (self,))
-        Thread(target=self.lots_raise_loop, daemon=True).start()
-        Thread(target=self.update_session_loop, daemon=True).start()
+
+        # Запускаем циклы для каждого аккаунта в отдельном потоке
+        for name, account in self.accounts.items():
+            Thread(target=self.lots_raise_loop, args=(account,), daemon=True).start()
+            Thread(target=self.update_session_loop, args=(account,), daemon=True).start()
+            Thread(target=self.process_events, args=(account,), daemon=True).start()
+
+        # Эти потоки остаются глобальными
         Thread(target=statistics_cp.periodic_sales_update, args=(self,), daemon=True).start()
         Thread(target=order_control_cp.periodic_order_check, args=(self,), daemon=True).start()
-        self.process_events()
-
-    def start(self):
-        self.run_id += 1
-        self.run_handlers(self.pre_start_handlers, (self,))
-        self.run_handlers(self.post_start_handlers, (self,))
-        self.process_events()
+        
+        # Основной поток может спать или выполнять другие глобальные задачи
+        while True:
+            time.sleep(3600)
 
     def stop(self):
         self.run_id += 1
         self.run_handlers(self.pre_stop_handlers, (self,))
         self.run_handlers(self.post_stop_handlers, (self,))
 
-    def update_lots_and_categories(self):
-        result = self.__update_profile(infinite_polling=False, attempts=3, update_main_profile=False)
+    def update_lots_and_categories(self, account: FunPayAPI.Account):
+        result = self.__update_profile(account, infinite_polling=False, attempts=3)
         return result
 
     def switch_msg_get_mode(self):
         self.MAIN_CFG["FunPay"]["oldMsgGetMode"] = str(int(not self.old_mode_enabled))
         self.save_config(self.MAIN_CFG, "configs/_main.cfg")
-        if not self.runner:
-            return
-        self.runner.make_msg_requests = not self.old_mode_enabled
-        if self.old_mode_enabled:
-            self.runner.last_messages_ids = {}
-            self.runner.by_bot_ids = {}
-        else:
-            self.runner.last_messages_ids = {k: v[0] for k, v in self.runner.runner_last_messages.items()}
+        for acc in self.accounts.values():
+            if not acc.runner:
+                continue
+            acc.runner.make_msg_requests = not self.old_mode_enabled
+            if self.old_mode_enabled:
+                acc.runner.last_messages_ids = {}
+                acc.runner.by_bot_ids = {}
+            else:
+                acc.runner.last_messages_ids = {k: v[0] for k, v in acc.runner.runner_last_messages.items()}
 
 
     @staticmethod
