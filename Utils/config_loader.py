@@ -53,39 +53,10 @@ def create_config_obj(config_path: str) -> ConfigParser:
 
     :return: объект конфига.
     """
-    config = ConfigParser(delimiters=(":",), interpolation=None, allow_no_value=True)
+    config = ConfigParser(delimiters=(":",), interpolation=None)
     config.optionxform = str
     config.read_file(codecs.open(config_path, "r", "utf8"))
     return config
-
-
-def get_funpay_accounts(config: ConfigParser) -> dict[str, dict]:
-    """
-    Извлекает и валидирует конфигурации аккаунтов FunPay.
-    """
-    accounts = {}
-    if "FunPayAccounts" not in config:
-        raise ConfigParseError("configs/_main.cfg", "FunPayAccounts", SectionNotFoundError())
-
-    for account_name in config["FunPayAccounts"]:
-        section_name = f"FunPayAccount_{account_name}"
-        if section_name not in config:
-            raise ConfigParseError("configs/_main.cfg", section_name, SectionNotFoundError())
-        
-        account_section = config[section_name]
-        try:
-            golden_key = check_param("golden_key", account_section)
-            user_agent = check_param("user_agent", account_section, valid_values=[None])
-            enabled = check_param("enabled", account_section, valid_values=["0", "1"])
-        except (ParamNotFoundError, EmptyValueError, ValueNotValidError) as e:
-            raise ConfigParseError("configs/_main.cfg", section_name, e)
-
-        accounts[account_name] = {
-            "golden_key": golden_key,
-            "user_agent": user_agent,
-            "enabled": enabled == "1"
-        }
-    return accounts
 
 
 def load_main_config(config_path: str):
@@ -99,6 +70,8 @@ def load_main_config(config_path: str):
     config = create_config_obj(config_path)
     values = {
         "FunPay": {
+            "golden_key": "any",
+            "user_agent": "any+empty",
             "autoRaise": ["0", "1"],
             "autoResponse": ["0", "1"],
             "autoDelivery": ["0", "1"],
@@ -426,4 +399,4 @@ def load_auto_delivery_config(config_path: str):
             raise ConfigParseError(config_path, lot_title, NoProductVarError())
     return config
 
-# END OF FILE FunPayCortex-main/Utils/config_loader.py
+# END OF FILE FunPayCortex/Utils/config_loader.py

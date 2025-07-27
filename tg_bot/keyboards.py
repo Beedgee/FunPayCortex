@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/keyboards.py
+# Файл: FunPayCortex-main/tg_bot/keyboards.py
 
 """
 Функции генерации клавиатур для суб-панелей управления.
@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from cortex import Cortex
     from FunPayAPI.types import MyLotShortcut, Category, SubCategory
-    import FunPayAPI
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 
@@ -617,40 +616,52 @@ def edit_lot(c: Cortex, lot_number: int, offset: int) -> K:
     return kb
 
 
-def new_order(order_id: str, username: str, node_id: int, account_name: str,
+def new_order(order_id: str, username: str, node_id: int,
               confirmation: bool = False, no_refund: bool = False, cortex: Cortex | None = None) -> K:
     """
     Генерирует клавиатуру для сообщения о новом заказе.
+    :param order_id: ID заказа (без #).
+    :param username: никнейм покупателя.
+    :param node_id: ID чата с покупателем.
+    :param confirmation: заменить ли кнопку "Вернуть деньги" на подтверждение "Да" / "Нет"?
+    :param no_refund: убрать ли кнопки, связанные с возвратом денег?
+    :param cortex: экземпляр Cortex для проверки статуса подтверждения.
+    :return: объект клавиатуры для сообщения о новом заказе.
     """
     kb = K()
-    
+
     if cortex and cortex.MAIN_CFG["OrderControl"].getboolean("notify_pending_confirmation", False):
         if not cortex.order_confirmations.get(order_id, {}).get("confirmed_ts"):
-            kb.add(B("✅ " + _("oc_mark_as_delivered_btn"), callback_data=f"{CBT.MARK_ORDER_DELIVERED}:{account_name}:{order_id}"))
+            kb.add(B("✅ " + _("oc_mark_as_delivered_btn"), callback_data=f"{CBT.MARK_ORDER_DELIVERED}:{order_id}"))
 
     if not no_refund:
         if confirmation:
-            kb.row(B(_("gl_yes") + " " + _("ord_refund"), callback_data=f"{CBT.REFUND_CONFIRMED}:{account_name}:{order_id}:{node_id}:{username}"),
-                   B(_("gl_no") + " " + _("ord_dont_refund"), callback_data=f"{CBT.REFUND_CANCELLED}:{account_name}:{order_id}:{node_id}:{username}"))
+            kb.row(B(_("gl_yes") + " " + _("ord_refund"), callback_data=f"{CBT.REFUND_CONFIRMED}:{order_id}:{node_id}:{username}"),
+                   B(_("gl_no") + " " + _("ord_dont_refund"), callback_data=f"{CBT.REFUND_CANCELLED}:{order_id}:{node_id}:{username}"))
         else:
-            kb.add(B(_("ord_refund"), callback_data=f"{CBT.REQUEST_REFUND}:{account_name}:{order_id}:{node_id}:{username}"))
+            kb.add(B(_("ord_refund"), callback_data=f"{CBT.REQUEST_REFUND}:{order_id}:{node_id}:{username}"))
 
-    kb.row(B(_("ord_answer"), callback_data=f"{CBT.SEND_FP_MESSAGE}:{account_name}:{node_id}:{username}"),
+    kb.row(B(_("ord_answer"), callback_data=f"{CBT.SEND_FP_MESSAGE}:{node_id}:{username}"),
            B(_("ord_templates"), callback_data=
-             f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:2:{account_name}:{order_id}:{1 if no_refund else 0}"))
+             f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:2:{order_id}:{1 if no_refund else 0}"))
     return kb
 
 
-def reply(node_id: int, username: str, again: bool = False, extend: bool = False, account_name: str | None = None) -> K:
+def reply(node_id: int, username: str, again: bool = False, extend: bool = False) -> K:
     """
     Генерирует клавиатуру для отправки сообщения в чат FunPay.
+    :param node_id: ID переписки, в которую нужно отправить сообщение.
+    :param username: никнейм пользователя, с которым ведется переписка.
+    :param again: заменить текст "Отправить" на "Отправить еще"?
+    :param extend: добавить ли кнопку "Расширить"?
+    :return: объект клавиатуры для отправки сообщения в чат FunPay.
     """
     buttons = [
-        B(_("msg_reply2") if again else _("msg_reply"), callback_data=f"{CBT.SEND_FP_MESSAGE}:{account_name}:{node_id}:{username}"),
-        B(_("msg_templates"), callback_data=f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:{int(again)}:{int(extend)}:{account_name}")
+        B(_("msg_reply2") if again else _("msg_reply"), callback_data=f"{CBT.SEND_FP_MESSAGE}:{node_id}:{username}"),
+        B(_("msg_templates"), callback_data=f"{CBT.TMPLT_LIST_ANS_MODE}:0:{node_id}:{username}:{int(again)}:{int(extend)}")
     ]
     if extend:
-        buttons.append(B(_("msg_more"), callback_data=f"{CBT.EXTEND_CHAT}:{account_name}:{node_id}:{username}"))
+        buttons.append(B(_("msg_more"), callback_data=f"{CBT.EXTEND_CHAT}:{node_id}:{username}"))
     
     buttons.append(B(f"💬 FunPay: {username}", url=f"https://funpay.com/chat/?node={node_id}"))
     
@@ -662,6 +673,9 @@ def reply(node_id: int, username: str, again: bool = False, extend: bool = False
 def templates_list(c: Cortex, offset: int) -> K:
     """
     Генерирует клавиатуру со списком шаблонов ответов. (CBT.TMPLT_LIST:<offset>).
+    :param c: экземпляр Cortex.
+    :param offset: смещение списка шаблонов.
+    :return: объект клавиатуры со списком шаблонов ответов.
     """
     kb = K()
     all_templates = c.telegram.answer_templates
@@ -687,6 +701,10 @@ def templates_list(c: Cortex, offset: int) -> K:
 def edit_template(c: Cortex, template_index: int, offset: int) -> K:
     """
     Генерирует клавиатуру изменения шаблона ответа (CBT.EDIT_TMPLT:<template_index>:<offset>).
+    :param c: экземпляр Cortex.
+    :param template_index: числовой индекс шаблона ответа.
+    :param offset: смещение списка шаблонов ответа.
+    :return: объект клавиатуры изменения шаблона ответа.
     """
     kb = K() \
         .add(B(_("gl_delete"), callback_data=f"{CBT.DEL_TMPLT}:{template_index}:{offset}")) \
@@ -698,6 +716,14 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
                             extra: list | None = None):
     """
     Генерирует клавиатуру со списком шаблонов ответов для быстрого ответа.
+    (CBT.TMPLT_LIST_ANS_MODE:{offset}:{node_id}:{username}:{prev_page}:{extra}).
+    :param c: объект Cortex.
+    :param offset: смещение списка шаблонов ответа.
+    :param node_id: ID чата, в который нужно отправить шаблон.
+    :param username: никнейм пользователя, с которым ведется переписка.
+    :param prev_page: предыдущая страница (для кнопки "Назад").
+    :param extra: доп данные для пред. страницы.
+    :return: объект клавиатуры со списком шаблонов ответов.
     """
     kb = K()
     all_templates = c.telegram.answer_templates
@@ -724,11 +750,11 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
                                 len(all_templates), CBT.TMPLT_LIST_ANS_MODE,
                                 extra_list_for_nav)
 
-    back_cb_data = f"{CBT.BACK_TO_REPLY_KB}:{extra[0] if extra else ''}:{node_id}:{username}:0:{extra_str}"
+    back_cb_data = f"{CBT.BACK_TO_REPLY_KB}:{node_id}:{username}:0{extra_str}"
     if prev_page == 1:
-        back_cb_data = f"{CBT.BACK_TO_REPLY_KB}:{extra[0] if extra else ''}:{node_id}:{username}:1:{extra_str}"
+        back_cb_data = f"{CBT.BACK_TO_REPLY_KB}:{node_id}:{username}:1{extra_str}"
     elif prev_page == 2:
-        back_cb_data = f"{CBT.BACK_TO_ORDER_KB}:{extra[0] if extra else ''}:{node_id}:{username}:{extra_str}"
+        back_cb_data = f"{CBT.BACK_TO_ORDER_KB}:{node_id}:{username}{extra_str}"
     kb.add(B(_("gl_back"), callback_data=back_cb_data))
     return kb
 
@@ -736,6 +762,9 @@ def templates_list_ans_mode(c: Cortex, offset: int, node_id: int, username: str,
 def plugins_list(c: Cortex, offset: int):
     """
     Генерирует клавиатуру со списком плагинов (CBT.PLUGINS_LIST:<offset>).
+    :param c: объект Cortex.
+    :param offset: смещение списка плагинов.
+    :return: объект клавиатуры со списком плагинов.
     """
     kb = K()
     sorted_plugin_uuids = sorted(c.plugins.keys(), key=lambda x_uuid: c.plugins[x_uuid].name.lower())
@@ -765,6 +794,11 @@ def plugins_list(c: Cortex, offset: int):
 def edit_plugin(c: Cortex, uuid: str, offset: int, ask_to_delete: bool = False):
     """
     Генерирует клавиатуру управления плагином.
+    :param c: объект Cortex.
+    :param uuid: UUID плагина.
+    :param offset: смещение списка плагинов.
+    :param ask_to_delete: вставить ли подтверждение удаления плагина?
+    :return: объект клавиатуры управления плагином.
     """
     plugin_obj = c.plugins[uuid]
     kb = K()
@@ -789,7 +823,7 @@ def LINKS_KB(language: None | str = None) -> K:
     return K()
     
     
-def statistics_menu(c: Cortex, account_name: str) -> K:
+def statistics_menu(c: Cortex) -> K:
     """
     Генерирует клавиатуру для меню статистики.
     """
@@ -808,7 +842,7 @@ def statistics_menu(c: Cortex, account_name: str) -> K:
     )
     return kb
 
-def statistics_config_menu(c: Cortex, chat_id: int) -> K:
+def statistics_config_menu(c: Cortex) -> K:
     """
     Генерирует клавиатуру для настроек статистики.
     """
@@ -846,104 +880,104 @@ def order_control_settings(c: Cortex):
         .add(B(_("gl_back"), callback_data=CBT.MAIN2))
     return kb
 
-def accounts_list(c: Cortex, offset: int, user_id: int) -> K:
+# НОВЫЕ ФУНКЦИИ ДЛЯ ПОШАГОВОГО ВЫБОРА
+def ad_categories_list(c: Cortex, offset: int) -> K:
     """
-    Генерирует клавиатуру со списком FunPay аккаунтов.
-    """
-    kb = K()
-    active_account_name = c.telegram.active_account_for_user.get(user_id)
-    
-    for name, acc_cfg in c.FP_ACCOUNTS_CFG.items():
-        if not acc_cfg.get("enabled"):
-            status_emoji = "💤"
-            status_text = _("acc_status_offline")
-        elif name in c.accounts:
-            status_emoji = "🟢"
-            status_text = _("acc_status_online")
-        else:
-            status_emoji = "🔴"
-            status_text = _("acc_status_error")
-            
-        is_active = name == active_account_name
-        
-        row = []
-        if is_active:
-            row.append(B(f"✅ {name}", callback_data=CBT.EMPTY))
-        else:
-            row.append(B(name, callback_data=f"{CBT.SELECT_ACCOUNT}:{name}"))
-        
-        row.append(B(f"{status_emoji} {status_text}", callback_data=f"{CBT.TOGGLE_ACCOUNT}:{name}"))
-        row.append(B(_("gl_delete"), callback_data=f"{CBT.DELETE_ACCOUNT}:{name}"))
-        kb.row(*row)
-    
-    kb.add(B(_("acc_add"), callback_data=CBT.ADD_ACCOUNT))
-    kb.add(B(_("gl_back"), callback_data=CBT.MAIN))
-    return kb
-
-def ad_categories_list(cortex_instance: Cortex, active_account: "FunPayAPI.Account", offset: int) -> K:
-    """
-    Генерирует клавиатуру со списком категорий (игр) для привязки автовыдачи.
+    Генерирует клавиатуру со списком категорий (игр), где у пользователя есть лоты.
     """
     kb = K()
-    all_categories = sorted([cat for cat in active_account.get_sorted_categories().values() if cat.get_sorted_subcategories()[SubCategoryTypes.COMMON]], key=lambda x: x.position)
-    
-    categories_on_page = all_categories[offset:offset + MENU_CFG.FP_LOTS_BTNS_AMOUNT]
-
-    if not categories_on_page and offset == 0:
-        kb.add(B("🎮 На аккаунте нет лотов", callback_data=CBT.EMPTY))
-    else:
-        for cat in categories_on_page:
-            kb.add(B(f"📁 {cat.name}", callback_data=f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:{cat.id}:0"))
-
-    kb = add_navigation_buttons(kb, offset, MENU_CFG.FP_LOTS_BTNS_AMOUNT, len(categories_on_page),
-                                len(all_categories), CBT.AD_CHOOSE_CATEGORY_LIST)
-    
-    kb.row(
-        B(_("gl_back"), callback_data=f"{CBT.CATEGORY}:ad"),
-        B(_("fl_manual"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{offset}"),
-        B(_("gl_refresh"), callback_data=f"update_funpay_lots:{offset}")
-    )
-    return kb
-
-def ad_subcategories_list(cortex_instance: Cortex, active_account: "FunPayAPI.Account", category_id: int, offset: int) -> K:
-    """
-    Генерирует клавиатуру со списком подкатегорий.
-    """
-    kb = K()
-    category = active_account.get_category(category_id)
-    if not category:
-        kb.add(B(_("gl_error"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0"))
+    # Данные берем из tg_profile, который обновляется по кнопке "Обновить"
+    if not c.tg_profile:
+        kb.add(B(_("gl_error_try_again"), callback_data=f"update_funpay_lots:{offset}"))
         return kb
-
-    all_subcategories = sorted([sub for sub in category.get_subcategories() if sub.type == SubCategoryTypes.COMMON], key=lambda x: x.position)
+        
+    all_lots = c.tg_profile.get_common_lots()
     
-    subcategories_on_page = all_subcategories[offset:offset + MENU_CFG.FP_LOTS_BTNS_AMOUNT]
-
-    for sub in subcategories_on_page:
-        kb.add(B(f"📂 {sub.name}", callback_data=f"{CBT.AD_CHOOSE_LOT_LIST}:{category.id}:{sub.id}:0"))
-
-    kb = add_navigation_buttons(kb, offset, MENU_CFG.FP_LOTS_BTNS_AMOUNT, len(subcategories_on_page),
-                                len(all_subcategories), f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:{category.id}")
+    unique_categories = {}
+    for lot in all_lots:
+        if lot.subcategory and lot.subcategory.category:
+            cat = lot.subcategory.category
+            if cat.id not in unique_categories:
+                unique_categories[cat.id] = cat
+                
+    sorted_categories = sorted(unique_categories.values(), key=lambda category: category.name)
     
+    cats_on_page = sorted_categories[offset: offset + MENU_CFG.AD_BTNS_AMOUNT]
+    
+    if not cats_on_page and offset == 0:
+        kb.add(B("🤷‍♂️ Не найдено игр с активными лотами", callback_data=CBT.EMPTY))
+    else:
+        for category in cats_on_page:
+            kb.add(B(f"🎮 {category.name}", callback_data=f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:{category.id}:0"))
+
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AD_BTNS_AMOUNT, len(cats_on_page),
+                                len(sorted_categories), CBT.AD_CHOOSE_CATEGORY_LIST)
+    
+    kb.row(B(_("gl_refresh"), callback_data=f"update_funpay_lots:{offset}"),
+           B(_("fl_manual"), callback_data=f"{CBT.ADD_AD_TO_LOT_MANUALLY}:{offset}"))
+    kb.add(B(_("ad_to_ad"), callback_data=f"{CBT.CATEGORY}:ad"))
+    return kb
+
+
+def ad_subcategories_list(c: Cortex, category_id: int, offset: int) -> K:
+    """
+    Генерирует клавиатуру со списком подкатегорий в выбранной игре.
+    """
+    kb = K()
+    if not c.tg_profile:
+        kb.add(B(_("gl_error_try_again"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0"))
+        return kb
+        
+    all_lots = c.tg_profile.get_common_lots()
+
+    unique_subcategories = {}
+    for lot in all_lots:
+        if lot.subcategory and lot.subcategory.category.id == category_id:
+            subcat = lot.subcategory
+            if subcat.id not in unique_subcategories:
+                unique_subcategories[subcat.id] = subcat
+
+    sorted_subcategories = sorted(unique_subcategories.values(), key=lambda subcat: subcat.name)
+
+    subcats_on_page = sorted_subcategories[offset: offset + MENU_CFG.AD_BTNS_AMOUNT]
+
+    if not subcats_on_page and offset == 0:
+        kb.add(B("🤷‍♂️ Не найдено разделов с лотами в этой игре", callback_data=CBT.EMPTY))
+    else:
+        for subcat in subcats_on_page:
+            kb.add(B(f"📁 {subcat.name}", callback_data=f"{CBT.AD_CHOOSE_LOT_LIST}:{category_id}:{subcat.id}:0"))
+
+    extra_nav = [category_id]
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AD_BTNS_AMOUNT, len(subcats_on_page),
+                                len(sorted_subcategories), CBT.AD_CHOOSE_SUBCATEGORY_LIST, extra_nav)
+
     kb.add(B(_("gl_back"), callback_data=f"{CBT.AD_CHOOSE_CATEGORY_LIST}:0"))
     return kb
 
-def ad_lots_from_subcategory_list(cortex_instance: Cortex, lots: List["MyLotShortcut"], category_id: int, subcategory_id: int, offset: int) -> K:
+
+def ad_lots_from_subcategory_list(c: Cortex, lots: List[MyLotShortcut], category_id: int, subcategory_id: int, offset: int) -> K:
     """
-    Генерирует клавиатуру со списком лотов из подкатегории.
+    Генерирует клавиатуру со списком лотов из выбранной подкатегории.
     """
     kb = K()
-    lots_on_page = lots[offset:offset + MENU_CFG.FP_LOTS_BTNS_AMOUNT]
+    lots_on_page = lots[offset: offset + MENU_CFG.AD_BTNS_AMOUNT]
 
-    for i, lot in enumerate(lots_on_page):
-        lot_title = lot.title or "Без названия"
-        display_text = f"📦 {lot_title[:40]}{'...' if len(lot_title) > 40 else ''}"
-        kb.add(B(display_text, callback_data=f"{CBT.ADD_AD_TO_LOT}:{i}:{subcategory_id}:{category_id}:{offset}"))
+    if not lots_on_page and offset == 0:
+        kb.add(B("🤷‍♂️ Не найдено лотов в этом разделе.", callback_data=CBT.EMPTY))
+    else:
+        for index, lot_obj in enumerate(lots_on_page):
+            # В `get_my_subcategory_lots` нет информации о названии лота, используем описание
+            lot_title = lot_obj.description or f"Лот ID {lot_obj.id}"
+            is_ad_configured = lot_title in c.AD_CFG.sections()
+            prefix = "✅ " if is_ad_configured else "➕ "
+            display_title = lot_title[:40] + "..." if len(lot_title) > 40 else lot_title
+            # Передаем индекс на странице, а не абсолютный
+            callback_data = f"{CBT.ADD_AD_TO_LOT}:{index}:{subcategory_id}:{category_id}:{offset}"
+            kb.add(B(f"{prefix}{display_title}", callback_data=callback_data))
 
-    kb = add_navigation_buttons(kb, offset, MENU_CFG.FP_LOTS_BTNS_AMOUNT, len(lots_on_page),
-                                len(lots), f"{CBT.AD_CHOOSE_LOT_LIST}:{category_id}:{subcategory_id}")
-    
+    extra_nav = [category_id, subcategory_id]
+    kb = add_navigation_buttons(kb, offset, MENU_CFG.AD_BTNS_AMOUNT, len(lots_on_page),
+                                len(lots), CBT.AD_CHOOSE_LOT_LIST, extra_nav)
+                                
     kb.add(B(_("gl_back"), callback_data=f"{CBT.AD_CHOOSE_SUBCATEGORY_LIST}:{category_id}:0"))
     return kb
-
-# END OF FILE FunPayCortex-main/tg_bot/keyboards.py

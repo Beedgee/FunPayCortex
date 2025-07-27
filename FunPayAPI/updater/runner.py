@@ -127,7 +127,7 @@ class Runner:
 
         response = self.account.method("post", "runner/", headers, payload, raise_not_200=True)
         json_response = response.json()
-        logger.debug(f"Получены данные о событиях для аккаунта {self.account.name}: {json_response}")
+        logger.debug(f"Получены данные о событиях: {json_response}")
         return json_response
 
     def parse_updates(self, updates: dict) -> list[InitialChatEvent | ChatsListChangedEvent |
@@ -222,16 +222,16 @@ class Runner:
             self.account.add_chats([chat_obj])
             self.runner_last_messages[chat_id] = [node_msg_id, user_msg_id, last_msg_text_or_none]
             if self.__first_request:
-                events.append(InitialChatEvent(self.account, self.__last_msg_event_tag, chat_obj))
+                events.append(InitialChatEvent(self.__last_msg_event_tag, chat_obj))
                 if self.make_msg_requests:
                     self.last_messages_ids[chat_id] = node_msg_id
                 continue
             else:
-                lcmc_events.append(LastChatMessageChangedEvent(self.account, self.__last_msg_event_tag, chat_obj))
+                lcmc_events.append(LastChatMessageChangedEvent(self.__last_msg_event_tag, chat_obj))
 
         # Если есть события изменения чатов, значит это не первый запрос и ChatsListChangedEvent будет первым событием
         if lcmc_events:
-            events.append(ChatsListChangedEvent(self.account, self.__last_msg_event_tag))
+            events.append(ChatsListChangedEvent(self.__last_msg_event_tag))
 
         if not self.make_msg_requests:
             events.extend(lcmc_events)
@@ -339,7 +339,7 @@ class Runner:
             self.by_bot_ids[cid] = [i for i in self.by_bot_ids[cid] if i > self.last_messages_ids[cid]]  # чистим память
 
             for msg in messages:
-                event = NewMessageEvent(self.account, self.__last_msg_event_tag, msg, stack)
+                event = NewMessageEvent(self.__last_msg_event_tag, msg, stack)
                 stack.add_events([event])
                 result[cid].append(event)
         return result
@@ -362,7 +362,7 @@ class Runner:
         events = []
         self.__last_order_event_tag = obj.get("tag")
         if not self.__first_request:
-            events.append(OrdersListChangedEvent(self.account, self.__last_order_event_tag,
+            events.append(OrdersListChangedEvent(self.__last_order_event_tag,
                                                  obj["data"]["buyer"], obj["data"]["seller"]))
         if not self.make_order_requests:
             return events
@@ -388,14 +388,14 @@ class Runner:
             saved_orders[order.id] = order
             if order.id not in self.saved_orders:
                 if self.__first_request:
-                    events.append(InitialOrderEvent(self.account, self.__last_order_event_tag, order))
+                    events.append(InitialOrderEvent(self.__last_order_event_tag, order))
                 else:
-                    events.append(NewOrderEvent(self.account, self.__last_order_event_tag, order))
+                    events.append(NewOrderEvent(self.__last_order_event_tag, order))
                     if order.status == types.OrderStatuses.CLOSED:
-                        events.append(OrderStatusChangedEvent(self.account, self.__last_order_event_tag, order))
+                        events.append(OrderStatusChangedEvent(self.__last_order_event_tag, order))
 
             elif order.status != self.saved_orders[order.id].status:
-                events.append(OrderStatusChangedEvent(self.account, self.__last_order_event_tag, order))
+                events.append(OrderStatusChangedEvent(self.__last_order_event_tag, order))
         self.saved_orders = saved_orders
         return events
 
@@ -476,9 +476,9 @@ class Runner:
                 if not ignore_exceptions:
                     raise e
                 else:
-                    logger.error(f"Произошла ошибка при получении событий для аккаунта {self.account.name}. "
+                    logger.error("Произошла ошибка при получении событий. "
                                  "(ничего страшного, если это сообщение появляется нечасто).")
                     logger.debug("TRACEBACK", exc_info=True)
             time.sleep(requests_delay)
 
-# END OF FILE FunPayCortex-main/FunPayAPI/updater/runner.py
+# END OF FILE FunPayCortex/FunPayAPI/updater/runner.py

@@ -79,9 +79,9 @@ def old_log_msg_handler(c: Cortex, e: LastChatMessageChangedEvent):
     if not c.old_mode_enabled:
         return
     text, chat_name, chat_id = str(e.chat), e.chat.name, e.chat.id
-    username = e.account.username if not e.chat.unread else e.chat.name
+    username = c.account.username if not e.chat.unread else e.chat.name
 
-    logger.info(_("log_new_msg", chat_name, chat_id) + f" (аккаунт: {e.account_name})")
+    logger.info(_("log_new_msg", chat_name, chat_id))
     for index, line in enumerate(text.split("\n")):
         if not index:
             logger.info(f"$MAGENTA└───> $YELLOW{username}: $CYAN{line}")
@@ -96,7 +96,7 @@ def log_msg_handler(c: Cortex, e: NewMessageEvent):
 
     chat_name, chat_id = e.message.chat_name, e.message.chat_id
 
-    logger.info(_("log_new_msg", chat_name, chat_id) + f" (аккаунт: {e.account_name})")
+    logger.info(_("log_new_msg", chat_name, chat_id))
     for index, event in enumerate(e.stack.get_stack()):
         username, text = event.message.author, event.message.text or event.message.image_link
         for line_index, line in enumerate(text.split("\n")):
@@ -119,7 +119,7 @@ def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEven
         if isinstance(e, LastChatMessageChangedEvent):
             return
         obj = e.message
-        chat_id, chat_name, mtype, its_me, badge = obj.chat_id, obj.chat_name, obj.type, obj.author_id == e.account.id, obj.badge
+        chat_id, chat_name, mtype, its_me, badge = obj.chat_id, obj.chat_name, obj.type, obj.author_id == c.account.id, obj.badge
     else:
         obj = e.chat
         chat_id, chat_name, mtype, its_me, badge = obj.id, obj.name, obj.last_message_type, not obj.unread, None
@@ -135,9 +135,9 @@ def greetings_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEven
     c.old_users[chat_id] = int(time.time())
     cortex_tools.cache_old_users(c.old_users)
 
-    logger.info(_("log_sending_greetings", chat_name, chat_id) + f" (аккаунт: {e.account_name})")
+    logger.info(_("log_sending_greetings", chat_name, chat_id))
     text = cortex_tools.format_msg_text(c.MAIN_CFG["Greetings"]["greetingsText"], obj)
-    Thread(target=c.send_message, args=(e.account, chat_id, text, chat_name), daemon=True).start()
+    Thread(target=c.send_message, args=(chat_id, text, chat_name), daemon=True).start()
 
 
 def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChangedEvent):
@@ -159,9 +159,9 @@ def send_response_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChanged
     if any([c.bl_response_enabled and username in c.blacklist, (command := mtext.strip().lower()) not in c.AR_CFG]):
         return
 
-    logger.info(_("log_new_cmd", command, chat_name, chat_id) + f" (аккаунт: {e.account_name})")
+    logger.info(_("log_new_cmd", command, chat_name, chat_id))
     response_text = cortex_tools.format_msg_text(c.AR_CFG[command]["response"], obj)
-    Thread(target=c.send_message, args=(e.account, chat_id, response_text, chat_name), daemon=True).start()
+    Thread(target=c.send_message, args=(chat_id, response_text, chat_name), daemon=True).start()
 
 
 def old_send_new_msg_notification_handler(c: Cortex, e: LastChatMessageChangedEvent):
@@ -170,12 +170,15 @@ def old_send_new_msg_notification_handler(c: Cortex, e: LastChatMessageChangedEv
             e.chat.last_message_type is not MessageTypes.NON_SYSTEM, str(e.chat).strip().lower() in c.AR_CFG.sections(),
             str(e.chat).startswith("!автовыдача")]):
         return
-    
-    sender_link = f"<a href=\"https://funpay.com/users/{e.chat.interlocutor_id}/\">{utils.escape(e.chat.name)}</a>"
-    receiver_link = f"<a href=\"https://funpay.com/users/{e.account.id}/\">{utils.escape(e.account.username)}</a>"
-
-    text = f"<b>[{e.account_name}]</b> {sender_link} => {receiver_link}:\n<code>{utils.escape(str(e.chat))}</code>"
-    kb = keyboards.reply(e.chat.id, e.chat.name, extend=True, account_name=e.account_name)
+    user = e.chat.name
+    if user in c.blacklist:
+        user = f"🚷 {user}"
+    elif e.chat.last_by_bot:
+        user = f"🧠 {user}"
+    else:
+        user = f"👤 {user}"
+    text = f"<i><b>{user}: </b></i><code>{utils.escape(str(e.chat))}</code>"
+    kb = keyboards.reply(e.chat.id, e.chat.name, extend=True)
     Thread(target=c.telegram.send_notification, args=(text, kb, utils.NotificationTypes.new_message),
            daemon=True).start()
 
@@ -204,7 +207,7 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None:
             if c.include_bot_msg_enabled:
                 events.append(i)
                 b = True
-        elif i.message.author_id == e.account.id:
+        elif i.message.author_id == c.account.id:
             if c.include_my_msg_enabled:
                 events.append(i)
                 m = True
@@ -218,36 +221,52 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None:
             any([m and not c.only_my_msg_enabled, f and not c.only_fp_msg_enabled, b and not c.only_bot_msg_enabled]):
         return
 
-    text = f"<b>[{e.account_name}]</b>\n"
+    text = ""
     last_message_author_id = -1
-    
-    for i in e.stack.get_stack():
-        message = i.message
-        
-        # Формируем ссылки на профили
-        sender_id = message.author_id
-        sender_name = message.author
-        receiver_id = e.account.id if sender_id != e.account.id else message.interlocutor_id
-        receiver_name = e.account.username if sender_id != e.account.id else message.chat_name
-        
-        # Для системных сообщений отправитель - FunPay
-        if sender_id == 0:
-            sender_link = f"<i><b>FunPay</b></i>"
+    last_by_bot = False
+    last_badge = None
+    last_by_vertex = False
+    for i in events:
+        message_text = str(i.message)
+        if message_text.strip().lower() in c.AR_CFG.sections() and len(events) < 2:
+            return
+        elif message_text.startswith("!автовыдача") and len(events) < 2:
+            return
+        if i.message.author_id == last_message_author_id and i.message.by_bot == last_by_bot and \
+                i.message.badge == last_badge and i.message.by_vertex == last_by_vertex:
+            author = ""
+        elif i.message.author_id == c.account.id:
+            author = f"<i><b>🤖 {_('you')} (<i>FPCortex</i>):</b></i> " if i.message.by_bot else f"<i><b>🫵 {_('you')}:</b></i> "
+            if i.message.is_autoreply:
+                author = f"<i><b>📦 {_('you')} ({i.message.badge}):</b></i> "
+        elif i.message.author_id == 0:
+            author = f"<i><b>🔵 {i.message.author}: </b></i>"
+        elif i.message.is_employee:
+            author = f"<i><b>🆘 {i.message.author} ({i.message.badge}): </b></i>"
+        elif i.message.author == i.message.chat_name:
+            author = f"<i><b>👤 {i.message.author}: </b></i>"
+            if i.message.is_autoreply:
+                author = f"<i><b>🛍️ {i.message.author} ({i.message.badge}):</b></i> "
+            elif i.message.author in c.blacklist:
+                author = f"<i><b>🚷 {i.message.author}: </b></i>"
+            elif i.message.by_bot:
+                author = f"<i><b>🧠 {i.message.author}: </b></i>"
+            elif i.message.by_vertex:
+                author = f"<i><b>🐺 {i.message.author}: </b></i>"
         else:
-            sender_link = f"<a href=\"https://funpay.com/users/{sender_id}/\">{utils.escape(sender_name)}</a>"
-        
-        receiver_link = f"<a href=\"https://funpay.com/users/{receiver_id}/\">{utils.escape(receiver_name)}</a>"
+            author = f"<i><b>🆘 {i.message.author} ({_('support')}): </b></i>"
+        msg_text = f"<code>{utils.escape(i.message.text)}</code>" if i.message.text else \
+            f"<a href=\"{i.message.image_link}\">" \
+            f"{c.show_image_name and not (i.message.author_id == c.account.id and i.message.by_bot) and i.message.image_name or _('photo')}</a>"
+        text += f"{author}{msg_text}\n\n"
+        last_message_author_id = i.message.author_id
+        last_by_bot = i.message.by_bot
+        last_by_vertex = i.message.by_vertex
+        last_badge = i.message.badge
 
-        if message.author_id != last_message_author_id:
-             text += f"{sender_link} => {receiver_link}\n"
-        
-        msg_text = f"<code>{utils.escape(message.text)}</code>" if message.text else \
-            f"<a href=\"{message.image_link}\">" \
-            f"{c.show_image_name and not (message.author_id == e.account.id and message.by_bot) and message.image_name or _('photo')}</a>"
-        text += f"{msg_text}\n"
-        last_message_author_id = message.author_id
-    
-    text += "\n"
+    # Убеждаемся, что профиль клиента существует
+    if e.message.interlocutor_id and e.message.author_id == e.message.interlocutor_id:
+        crm_cp.get_or_create_customer(c, e.message.interlocutor_id, e.message.chat_name)
 
     # Обогащение уведомления данными из CRM
     if e.message.interlocutor_id and e.message.interlocutor_id in c.crm_data:
@@ -257,7 +276,7 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None:
         pending_count = len(customer_data.get("pending", []))
         notes = customer_data.get("notes", "")
 
-        crm_info = f"<b><a href='https://funpay.com/users/{e.message.interlocutor_id}/'>Картотека клиента</a></b>\n"
+        crm_info = f"\n\n<b><a href='https://funpay.com/users/{e.message.interlocutor_id}/'>Картотека клиента</a></b>\n"
         crm_info += f"✅ Покупок: <code>{purchase_count}</code>"
         if pending_count > 0:
             crm_info += f" | ⏳ Ожидает: <code>{pending_count}</code>"
@@ -267,19 +286,19 @@ def send_new_msg_notification_handler(c: Cortex, e: NewMessageEvent) -> None:
             crm_info += f"\n📝 Заметка: <i>{utils.escape(notes)}</i>"
         text += crm_info
 
-    kb = keyboards.reply(chat_id, chat_name, extend=True, account_name=e.account_name)
+    kb = keyboards.reply(chat_id, chat_name, extend=True)
     Thread(target=c.telegram.send_notification, args=(text, kb, utils.NotificationTypes.new_message),
            daemon=True).start()
 
 
-def send_review_notification(c: Cortex, account: FunPayAPI.Account, order: Order, chat_id: int, reply_text: str | None):
+def send_review_notification(c: Cortex, order: Order, chat_id: int, reply_text: str | None):
     if not c.telegram:
         return
     reply_text = _("ntfc_review_reply_text").format(utils.escape(reply_text)) if reply_text else ""
-    text = f"<b>[{account.name}]</b> " + _("ntfc_new_review").format('⭐' * order.review.stars, order.id, utils.escape(order.review.text), reply_text)
     Thread(target=c.telegram.send_notification,
-           args=(text,
-                 keyboards.new_order(order.id, order.buyer_username, chat_id, account_name=account.name),
+           args=(_("ntfc_new_review").format('⭐' * order.review.stars, order.id, utils.escape(order.review.text),
+                                             reply_text),
+                 keyboards.new_order(order.id, order.buyer_username, chat_id),
                  utils.NotificationTypes.review),
            daemon=True).start()
 
@@ -294,7 +313,7 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
 
     else:
         obj = e.chat
-        message_type, its_me = obj.last_message_type, f" {e.account.username} " in str(obj)
+        message_type, its_me = obj.last_message_type, f" {c.account.username} " in str(obj)
         message_text, chat_id = str(obj), obj.id
 
     if message_type not in [types.MessageTypes.NEW_FEEDBACK, types.MessageTypes.FEEDBACK_CHANGED] or its_me:
@@ -302,18 +321,18 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
 
     def send_reply():
         try:
-            order = c.get_order_from_object(e.account, obj)
+            order = c.get_order_from_object(obj)
             if order is None:
                 raise Exception("Не удалось получить объект заказа.")
         except:
-            logger.error(f"Не удалось получить информацию о заказе для сообщения: \"{message_text}\". (аккаунт: {e.account_name})")
+            logger.error(f"Не удалось получить информацию о заказе для сообщения: \"{message_text}\".")
             logger.debug("TRACEBACK", exc_info=True)
             return
 
         if not order.review or not order.review.stars:
             return
 
-        logger.info(f"Изменен отзыв на заказ #{order.id}. (аккаунт: {e.account_name})")
+        logger.info(f"Изменен отзыв на заказ #{order.id}.")
 
         toggle = f"star{order.review.stars}Reply"
         text_key = f"star{order.review.stars}ReplyText"
@@ -340,11 +359,11 @@ def process_review_handler(c: Cortex, e: NewMessageEvent | LastChatMessageChange
 
                 reply_text = cortex_tools.format_order_text(c.MAIN_CFG["ReviewReply"].get(text_key), order)
                 reply_text = format_text4review(reply_text)
-                e.account.send_review(order.id, reply_text)
+                c.account.send_review(order.id, reply_text)
             except:
-                logger.error(f"Произошла ошибка при ответе на отзыв {order.id}. (аккаунт: {e.account_name})")
+                logger.error(f"Произошла ошибка при ответе на отзыв {order.id}.")
                 logger.debug("TRACEBACK", exc_info=True)
-        send_review_notification(c, e.account, order, chat_id, reply_text)
+        send_review_notification(c, order, chat_id, reply_text)
 
     Thread(target=send_reply, daemon=True).start()
 
@@ -362,7 +381,7 @@ def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMe
         chat_id, chat_name, username = e.message.chat_id, e.message.chat_name, e.message.author
     else:
         obj, message_text = e.chat, str(e.chat)
-        chat_id, chat_name, username = obj.id, obj.name, obj.name if obj.unread else e.account.username
+        chat_id, chat_name, username = obj.id, obj.name, obj.name if obj.unread else c.account.username
 
     if c.bl_cmd_notification_enabled and username in c.blacklist:
         return
@@ -371,11 +390,11 @@ def send_command_notification_handler(c: Cortex, e: NewMessageEvent | LastChatMe
         return
 
     if not c.AR_CFG[command].get("notificationText"):
-        text = f"<b>[{e.account_name}]</b> 🧑‍💻 Пользователь <b><i>{username}</i></b> ввел команду <code>{utils.escape(command)}</code>."
+        text = f"🧑‍💻 Пользователь <b><i>{username}</i></b> ввел команду <code>{utils.escape(command)}</code>."
     else:
-        text = f"<b>[{e.account_name}]</b> " + cortex_tools.format_msg_text(c.AR_CFG[command]["notificationText"], obj)
+        text = cortex_tools.format_msg_text(c.AR_CFG[command]["notificationText"], obj)
 
-    Thread(target=c.telegram.send_notification, args=(text, keyboards.reply(chat_id, chat_name, account_name=e.account_name),
+    Thread(target=c.telegram.send_notification, args=(text, keyboards.reply(chat_id, chat_name),
                                                       utils.NotificationTypes.command), daemon=True).start()
 
 
@@ -414,18 +433,18 @@ def test_auto_delivery_handler(c: Cortex, e: NewMessageEvent | LastChatMessageCh
                                types.OrderStatuses.PAID,
                                date, "Авто-выдача, Тест", None, html)
 
-    fake_event = NewOrderEvent(e.account, e.runner_tag, fake_order)
+    fake_event = NewOrderEvent(e.runner_tag, fake_order)
     c.run_handlers(c.new_order_handlers, (c, fake_event,))
 
 
-def send_categories_raised_notification_handler(c: Cortex, cat: types.Category, error_text: str = "", account: FunPayAPI.Account | None = None) -> None:
+def send_categories_raised_notification_handler(c: Cortex, cat: types.Category, error_text: str = "") -> None:
     """
     Отправляет уведомление о поднятии лотов в Telegram.
     """
-    if not c.telegram or not account:
+    if not c.telegram:
         return
 
-    text = f"<b>[{account.name}]</b> ⤴️<b><i>Поднял все лоты категории</i></b> <code>{cat.name}</code>\n<tg-spoiler>{error_text}</tg-spoiler>"""
+    text = f"""⤴️<b><i>Поднял все лоты категории</i></b> <code>{cat.name}</code>\n<tg-spoiler>{error_text}</tg-spoiler>"""
     Thread(target=c.telegram.send_notification,
            args=(text,),
            kwargs={"notification_type": utils.NotificationTypes.lots_raise}, daemon=True).start()
@@ -454,22 +473,33 @@ def check_products_amount(config_obj: configparser.SectionProxy) -> int:
     return cortex_tools.count_products(f"storage/products/{file_name}")
 
 
-def update_profile_lots_handler(c: Cortex, e: OrdersListChangedEvent):
-    """Обновляет лоты в профиле аккаунта."""
-    logger.info(f"Получаю информацию о лотах для аккаунта '{e.account_name}'...")
+def update_current_lots_handler(c: Cortex, e: OrdersListChangedEvent):
+    logger.info("Получаю информацию о лотах...")
     attempts = 3
     while attempts:
         try:
-            e.account.profile = e.account.get_user(e.account.id)
+            c.curr_profile = c.account.get_user(c.account.id)
+            c.curr_profile_last_tag = e.runner_tag
             break
         except:
-            logger.error(f"Произошла ошибка при получении информации о лотах (аккаунт: {e.account_name}).")
+            logger.error("Произошла ошибка при получении информации о лотах.")
             logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
             time.sleep(2)
     else:
-        logger.error(f"Не удалось получить информацию о лотах (аккаунт: {e.account_name}): превышено кол-во попыток.")
+        logger.error("Не удалось получить информацию о лотах: превышено кол-во попыток.")
         return
+
+
+def update_profile_lots_handler(c: Cortex, e: OrdersListChangedEvent):
+    """Обновляет лоты в c.profile"""
+    if c.curr_profile_last_tag != e.runner_tag or c.profile_last_tag == e.runner_tag:
+        return
+    c.profile_last_tag = e.runner_tag
+    lots = c.curr_profile.get_sorted_lots(1)
+
+    for lot_id, lot in lots.items():
+        c.profile.update_lot(lot)
 
 
 # Новый ордер (REGISTER_TO_NEW_ORDER)
@@ -477,28 +507,26 @@ def log_new_order_handler(c: Cortex, e: NewOrderEvent, *args):
     """
     Логирует новый заказ.
     """
-    logger.info(f"Новый заказ! ID: $YELLOW#{e.order.id}$RESET (аккаунт: {e.account_name})")
+    logger.info(f"Новый заказ! ID: $YELLOW#{e.order.id}$RESET")
 
 
 def setup_event_attributes_handler(c: Cortex, e: NewOrderEvent, *args):
     config_section_name = None
     config_section_obj = None
     lot_description = e.order.description
-    
     # пробуем найти лот, чтобы не выдавать по строке, которую вписал покупатель при оформлении заказа
-    if e.account.profile:
-        for lot in sorted(list(e.account.profile.get_sorted_lots(2).get(e.order.subcategory, {}).values()),
-                          key=lambda l: len(f"{l.server}, {l.description}"), reverse=True):
-            if lot.server and lot.description:
-                temp_desc = f"{lot.server}, {lot.description}"
-            elif lot.server:
-                temp_desc = lot.server
-            else:
-                temp_desc = lot.description
+    for lot in sorted(list(c.profile.get_sorted_lots(2).get(e.order.subcategory, {}).values()),
+                      key=lambda l: len(f"{l.server}, {l.description}"), reverse=True):
+        if lot.server and lot.description:
+            temp_desc = f"{lot.server}, {lot.description}"
+        elif lot.server:
+            temp_desc = lot.server
+        else:
+            temp_desc = lot.description
 
-            if temp_desc in e.order.description:
-                lot_description = temp_desc
-                break
+        if temp_desc in e.order.description:
+            lot_description = temp_desc
+            break
 
     for i in range(3):
         for lot_name in c.AD_CFG:
@@ -523,9 +551,9 @@ def setup_event_attributes_handler(c: Cortex, e: NewOrderEvent, *args):
         setattr(e, i, attributes[i])
 
     if config_section_obj is None:
-        logger.info(f"Лот не найден в конфиге авто-выдачи! (аккаунт: {e.account_name})")
+        logger.info("Лот не найден в конфиге авто-выдачи!")
     else:
-        logger.info(f"Лот найден в конфиге авто-выдачи! (аккаунт: {e.account_name})")
+        logger.info("Лот найден в конфиге авто-выдачи!")
 
 
 def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args):
@@ -553,12 +581,12 @@ def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args):
 
     if e.order.subcategory:
         try:
-            calc_result = e.account.calc(e.order.subcategory.type, e.order.subcategory.id, e.order.price)
+            calc_result = c.account.calc(e.order.subcategory.type, e.order.subcategory.id, e.order.price)
             buyer_prices_in_order_currency = [m.price for m in calc_result.methods if m.currency == e.order.currency]
             if buyer_prices_in_order_currency:
                 buyer_price = min(buyer_prices_in_order_currency)
         except Exception as ex:
-            logger.warning(f"Не удалось рассчитать комиссию для заказа #{e.order.id} (аккаунт: {e.account_name}): {ex}")
+            logger.warning(f"Не удалось рассчитать комиссию для заказа #{e.order.id}: {ex}")
             logger.debug("TRACEBACK", exc_info=True)
 
     if buyer_price is None:
@@ -569,28 +597,21 @@ def send_new_order_notification_handler(c: Cortex, e: NewOrderEvent, *args):
     price_details = _("ntfc_new_order_price_details", seller_price=seller_price_str,
                       buyer_price=buyer_price_text, currency=str(e.order.currency))
 
-    text = f"<b>[{e.account_name}]</b> " + _("ntfc_new_order_no_link", f"{utils.escape(e.order.description)}, {utils.escape(e.order.subcategory_name)}",
+    text = _("ntfc_new_order_no_link", f"{utils.escape(e.order.description)}, {utils.escape(e.order.subcategory_name)}",
              e.order.buyer_username, price_details, e.order.id, delivery_info)
 
-    chat = e.account.get_chat_by_name(e.order.buyer_username, True)
+    chat = c.account.get_chat_by_name(e.order.buyer_username, True)
     if chat:
         chat_id = chat.id
-        keyboard = keyboards.new_order(e.order.id, e.order.buyer_username, chat_id, account_name=e.account_name, cortex=c)
+        keyboard = keyboards.new_order(e.order.id, e.order.buyer_username, chat_id)
         Thread(target=c.telegram.send_notification, args=(text, keyboard, utils.NotificationTypes.new_order),
                daemon=True).start()
     else:
-        logger.warning(f"Не удалось найти чат для пользователя {e.order.buyer_username} для отправки уведомления о заказе #{e.order.id} (аккаунт: {e.account_name})")
+        logger.warning(f"Не удалось найти чат для пользователя {e.order.buyer_username} для отправки уведомления о заказе #{e.order.id}")
 
 
 def deliver_goods(c: Cortex, e: NewOrderEvent, *args):
-    chat = e.account.get_chat_by_name(e.order.buyer_username, True)
-    if not chat:
-        logger.error(f"Не удалось найти чат с покупателем {e.order.buyer_username} для выдачи товара по заказу #{e.order.id} (аккаунт: {e.account_name}).")
-        setattr(e, "error", 1)
-        setattr(e, "error_text", f"Не найден чат с покупателем {e.order.buyer_username}.")
-        return
-
-    chat_id = chat.id
+    chat_id = c.account.get_chat_by_name(e.order.buyer_username).id
     cfg_obj = getattr(e, "config_section_obj")
     delivery_text = cortex_tools.format_order_text(cfg_obj["response"], e.order)
 
@@ -603,22 +624,22 @@ def deliver_goods(c: Cortex, e: NewOrderEvent, *args):
             delivery_text = delivery_text.replace("$product", "\n".join(products).replace("\\n", "\n"))
     except Exception as exc:
         logger.error(
-            f"Произошла ошибка при получении товаров для заказа $YELLOW{e.order.id}$RESET (аккаунт: {e.account_name}): {str(exc)}")
+            f"Произошла ошибка при получении товаров для заказа $YELLOW{e.order.id}: {str(exc)}$RESET")
         logger.debug("TRACEBACK", exc_info=True)
         setattr(e, "error", 1)
         setattr(e, "error_text",
                 f"Произошла ошибка при получении товаров для заказа {e.order.id}: {str(exc)}")
         return
 
-    result = c.send_message(e.account, chat_id, delivery_text, e.order.buyer_username)
+    result = c.send_message(chat_id, delivery_text, e.order.buyer_username)
     if not result:
-        logger.error(f"Не удалось отправить товар для ордера $YELLOW{e.order.id}$RESET (аккаунт: {e.account_name}).")
+        logger.error(f"Не удалось отправить товар для ордера $YELLOW{e.order.id}$RESET.")
         setattr(e, "error", 1)
         setattr(e, "error_text", f"Не удалось отправить сообщение с товаром для заказа {e.order.id}.")
         if file_name and products:
             cortex_tools.add_products(f"storage/products/{file_name}", products, at_zero_position=True)
     else:
-        logger.info(f"Товар для заказа {e.order.id} выдан. (аккаунт: {e.account_name})")
+        logger.info(f"Товар для заказа {e.order.id} выдан.")
         setattr(e, "delivered", True)
         setattr(e, "delivery_text", delivery_text)
         setattr(e, "goods_delivered", amount)
@@ -633,13 +654,13 @@ def deliver_product_handler(c: Cortex, e: NewOrderEvent, *args) -> None:
         return
     if e.order.buyer_username in c.blacklist and c.bl_delivery_enabled:
         logger.info(f"Пользователь {e.order.buyer_username} находится в ЧС и включена блокировка автовыдачи. "
-                    f"$YELLOW(ID: {e.order.id}, аккаунт: {e.account_name})$RESET")
+                    f"$YELLOW(ID: {e.order.id})$RESET")
         return
 
     if (config_section_obj := getattr(e, "config_section_obj")) is None:
         return
     if config_section_obj.getboolean("disable"):
-        logger.info(f"Для лота \"{e.order.description}\" отключена автовыдача. (аккаунт: {e.account_name})")
+        logger.info(f"Для лота \"{e.order.description}\" отключена автовыдача.")
         return
 
     c.run_handlers(c.pre_delivery_handlers, (c, e))
@@ -656,10 +677,10 @@ def send_delivery_notification_handler(c: Cortex, e: NewOrderEvent):
         return
 
     if getattr(e, "error"):
-        text = f"<b>[{e.account_name}]</b> ❌ <code>{getattr(e, 'error_text')}</code>"
+        text = f"""❌ <code>{getattr(e, "error_text")}</code>"""
     else:
         amount = "<b>∞</b>" if getattr(e, "goods_left") == -1 else f"<code>{getattr(e, 'goods_left')}</code>"
-        text = f"""<b>[{e.account_name}]</b> ✅ Успешно выдал товар для ордера <code>{e.order.id}</code>.\n
+        text = f"""✅ Успешно выдал товар для ордера <code>{e.order.id}</code>.\n
 🛒 <b><i>Товар:</i></b>
 <code>{utils.escape(getattr(e, "delivery_text"))}</code>\n
 📋 <b><i>Осталось товаров: </i></b>{amount}"""
@@ -668,11 +689,11 @@ def send_delivery_notification_handler(c: Cortex, e: NewOrderEvent):
            kwargs={"notification_type": utils.NotificationTypes.delivery}, daemon=True).start()
 
 
-def update_lot_state(account: FunPayAPI.Account, lot: types.LotShortcut, task: int) -> bool:
+def update_lot_state(cortex_instance: Cortex, lot: types.LotShortcut, task: int) -> bool:
     """
     Обновляет состояние лота
 
-    :param account: объект аккаунта.
+    :param cortex_instance: объект Кортекса.
     :param lot: объект лота.
     :param task: -1 - деактивировать лот. 1 - активировать лот.
 
@@ -681,78 +702,107 @@ def update_lot_state(account: FunPayAPI.Account, lot: types.LotShortcut, task: i
     attempts = 3
     while attempts:
         try:
-            lot_fields = account.get_lot_fields(lot.id)
+            lot_fields = cortex_instance.account.get_lot_fields(lot.id)
             if task == 1:
                 lot_fields.active = True
-                account.save_lot(lot_fields)
-                logger.info(f"Восстановил лот $YELLOW{lot.description}$RESET (аккаунт: {account.name}).")
+                cortex_instance.account.save_lot(lot_fields)
+                logger.info(f"Восстановил лот $YELLOW{lot.description}$RESET.")
             elif task == -1:
                 lot_fields.active = False
-                account.save_lot(lot_fields)
-                logger.info(f"Деактивировал лот $YELLOW{lot.description}$RESET (аккаунт: {account.name}).")
+                cortex_instance.account.save_lot(lot_fields)
+                logger.info(f"Деактивировал лот $YELLOW{lot.description}$RESET.")
             return True
         except Exception as e:
             if isinstance(e, exceptions.RequestFailedError) and e.status_code == 404:
-                logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET (аккаунт: {account.name}): лот не найден.")
+                logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET:"
+                             "лот не найден.")
                 return False
-            logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET (аккаунт: {account.name}).")
+            logger.error(f"Произошла ошибка при изменении состояния лота $YELLOW{lot.description}$RESET.")
             logger.debug("TRACEBACK", exc_info=True)
             attempts -= 1
             time.sleep(2)
     logger.error(
-        f"Не удалось изменить состояние лота $YELLOW{lot.description}$RESET (аккаунт: {account.name}): превышено кол-во попыток.")
+        f"Не удалось изменить состояние лота $YELLOW{lot.description}$RESET: превышено кол-во попыток.")
     return False
 
 
-def update_lots_states(cortex_instance: Cortex, account: FunPayAPI.Account):
+def update_lots_states(cortex_instance: Cortex, event: NewOrderEvent):
     if not any([cortex_instance.autorestore_enabled, cortex_instance.autodisable_enabled]):
         return
-    if not account.profile:
-        logger.warning(f"Профиль для аккаунта {account.name} не загружен, пропуск обновления состояний лотов.")
+    if cortex_instance.curr_profile_last_tag != event.runner_tag or cortex_instance.last_state_change_tag == event.runner_tag:
         return
 
-    all_lots = account.profile.get_sorted_lots(1)
-    deactivated, restored = [], []
-    
-    for lot in all_lots.values():
-        if not lot.description: continue
-        
+    lots = cortex_instance.curr_profile.get_sorted_lots(1)
+
+    deactivated = []
+    restored = []
+    for lot in cortex_instance.profile.get_sorted_lots(3)[SubCategoryTypes.COMMON].values():
+        if not lot.description:
+            continue
+        # -1 - деактивировать
+        # 0 - ничего не делать
+        # 1 - восстановить
         current_task = 0
         config_obj = get_lot_config_by_name(cortex_instance, lot.description)
 
-        if not lot.active:
+        # Если лот уже деактивирован
+        if lot.id not in lots:
+            # и не найден в конфиге автовыдачи (глобальное автовосстановление включено)
             if config_obj is None:
-                if cortex_instance.autorestore_enabled: current_task = 1
+                if cortex_instance.autorestore_enabled:
+                    current_task = 1
+
+            # и найден в конфиге автовыдачи
             else:
-                if cortex_instance.autorestore_enabled and not config_obj.getboolean("disableAutoRestore"):
-                    if not cortex_instance.autodisable_enabled or check_products_amount(config_obj):
+                # и глобальное автовосстановление вкл. + не выключено в самом лоте в конфиге автовыдачи
+                if cortex_instance.autorestore_enabled and config_obj.get("disableAutoRestore") in ["0", None]:
+                    # если глобальная автодеактивация выключена - восстанавливаем.
+                    if not cortex_instance.autodisable_enabled:
                         current_task = 1
-        else: # Лот активен
-            if config_obj and not check_products_amount(config_obj) and \
-               cortex_instance.autodisable_enabled and not config_obj.getboolean("disableAutoDisable"):
-                current_task = -1
+                    # если глобальная автодеактивация включена - восстанавливаем только если есть товары.
+                    else:
+                        if check_products_amount(config_obj):
+                            current_task = 1
+
+        # Если же лот активен
+        else:
+            # и найден в конфиге автовыдачи
+            if config_obj:
+                products_count = check_products_amount(config_obj)
+                # и все условия выполнены: нет товаров + включено глобальная автодеактивация + она не выключена в
+                # самом лоте в конфига автовыдачи - отключаем.
+                if all((not products_count, cortex_instance.MAIN_CFG["FunPay"].getboolean("autoDisable"),
+                        config_obj.get("disableAutoDisable") in ["0", None])):
+                    current_task = -1
 
         if current_task:
-            result = update_lot_state(account, lot, current_task)
+            result = update_lot_state(cortex_instance, lot, current_task)
             if result:
-                if current_task == -1: deactivated.append(lot.description)
-                elif current_task == 1: restored.append(lot.description)
+                if current_task == -1:
+                    deactivated.append(lot.description)
+                elif current_task == 1:
+                    restored.append(lot.description)
             time.sleep(0.5)
 
-    if deactivated and cortex_instance.telegram:
-        lots_str = "\n".join(deactivated)
-        text = f"<b>[{account.name}]</b> 🔴 <b>Деактивировал лоты:</b>\n\n<code>{utils.escape(lots_str)}</code>"
+    if deactivated:
+        lots = "\n".join(deactivated)
+        text = f"""🔴 <b>Деактивировал лоты:</b>
+
+<code>{lots}</code>"""
         Thread(target=cortex_instance.telegram.send_notification, args=(text,),
                kwargs={"notification_type": utils.NotificationTypes.lots_deactivate}, daemon=True).start()
-    if restored and cortex_instance.telegram:
-        lots_str = "\n".join(restored)
-        text = f"<b>[{account.name}]</b> 🟢 <b>Активировал лоты:</b>\n\n<code>{utils.escape(lots_str)}</code>"
+    if restored:
+        lots = "\n".join(restored)
+        text = f"""🟢 <b>Активировал лоты:</b>
+
+<code>{lots}</code>"""
         Thread(target=cortex_instance.telegram.send_notification, args=(text,),
                kwargs={"notification_type": utils.NotificationTypes.lots_restore}, daemon=True).start()
+    cortex_instance.last_state_change_tag = event.runner_tag
 
 
 def update_lots_state_handler(cortex_instance: Cortex, event: NewOrderEvent, *args):
-    Thread(target=update_lots_states, args=(cortex_instance, event.account), daemon=True).start()
+    Thread(target=update_lots_states, args=(cortex_instance, event), daemon=True).start()
 
 
 # BIND_TO_ORDER_STATUS_CHANGED
@@ -764,11 +814,11 @@ def send_thank_u_message_handler(c: Cortex, e: OrderStatusChangedEvent):
         return
 
     text = cortex_tools.format_order_text(c.MAIN_CFG["OrderConfirm"]["replyText"], e.order)
-    chat = e.account.get_chat_by_name(e.order.buyer_username, True)
+    chat = c.account.get_chat_by_name(e.order.buyer_username, True)
     logger.info(f"Пользователь $YELLOW{e.order.buyer_username}$RESET подтвердил выполнение заказа "
-                f"$YELLOW{e.order.id}.$RESET (аккаунт: {e.account_name})")
-    logger.info(f"Отправляю ответное сообщение ... (аккаунт: {e.account_name})")
-    Thread(target=c.send_message, args=(e.account, chat.id, text, e.order.buyer_username),
+                f"$YELLOW{e.order.id}.$RESET")
+    logger.info(f"Отправляю ответное сообщение ...")
+    Thread(target=c.send_message, args=(chat.id, text, e.order.buyer_username),
            kwargs={'watermark': c.MAIN_CFG["OrderConfirm"].getboolean("watermark")}, daemon=True).start()
 
 
@@ -779,13 +829,13 @@ def send_order_confirmed_notification_handler(cortex_instance: Cortex, event: Or
     if not event.order.status == types.OrderStatuses.CLOSED:
         return
 
-    chat = event.account.get_chat_by_name(event.order.buyer_username, True)
-    text = f"""<b>[{event.account_name}]</b> 🪙 Пользователь <a href="https://funpay.com/chat/?node={chat.id if chat else ''}">{event.order.buyer_username}</a> """ \
-           f"""подтвердил выполнение заказа <code>{event.order.id}</code>. (<code>{event.order.price} {event.order.currency}</code>)"""
+    chat = cortex_instance.account.get_chat_by_name(event.order.buyer_username, True)
     Thread(target=cortex_instance.telegram.send_notification,
-           args=(text,
-                 keyboards.new_order(event.order.id, event.order.buyer_username, chat.id if chat else 0, account_name=event.account_name, cortex=cortex_instance),
-                 utils.NotificationTypes.order_confirmed),
+           args=(
+               f"""🪙 Пользователь <a href="https://funpay.com/chat/?node={chat.id}">{event.order.buyer_username}</a> """
+               f"""подтвердил выполнение заказа <code>{event.order.id}</code>. (<code>{event.order.price} {event.order.currency}</code>)""",
+               keyboards.new_order(event.order.id, event.order.buyer_username, chat.id),
+               utils.NotificationTypes.order_confirmed),
            daemon=True).start()
 
 
@@ -795,31 +845,11 @@ def send_bot_started_notification_handler(c: Cortex, *args):
     """
     if c.telegram is None:
         return
-
-    full_text = f"✅ <b><u>FPCortex v{c.VERSION} инициализирован!</u></b>\n\n"
-    total_balance = {"₽": 0.0, "$": 0.0, "€": 0.0}
-    total_sales = 0
-
-    for name, account in c.accounts.items():
-        if account.balance:
-            total_balance["₽"] += account.balance.total_rub
-            total_balance["$"] += account.balance.total_usd
-            total_balance["€"] += account.balance.total_eur
-        if account.active_sales is not None:
-            total_sales += account.active_sales
-        
-        full_text += f"👑 <b>{name}</b> (<code>{account.username}</code> | <code>{account.id}</code>)\n" \
-                     f"  💰 <code>{account.balance.total_rub if account.balance else '?'}₽, {account.balance.total_usd if account.balance else '?'} $, {account.balance.total_eur if account.balance else '?'}€</code>\n" \
-                     f"  📊 Активных заказов: <code>{account.active_sales if account.active_sales is not None else '?'}</code>\n\n"
-
-    full_text += f"<b><u>Итог по всем аккаунтам:</u></b>\n" \
-                 f"💰 <b>Общий баланс:</b> <code>{total_balance['₽']:.2f}₽, {total_balance['$']:.2f}$, {total_balance['€']:.2f}€</code>\n" \
-                 f"📊 <b>Всего активных заказов:</b> <code>{total_sales}</code>\n\n" \
-                 f"👨‍💻 <b><i>Автор:</i></b> @beedge"
-
-    for chat_id, message_id in c.telegram.init_messages:
+    text = _("fpc_init", c.VERSION, c.account.username, c.account.id,
+             c.balance.total_rub, c.balance.total_usd, c.balance.total_eur, c.account.active_sales)
+    for i in c.telegram.init_messages:
         try:
-            c.telegram.bot.edit_message_text(full_text, chat_id, message_id)
+            c.telegram.bot.edit_message_text(text, i[0], i[1])
         except:
             continue
 
@@ -846,7 +876,7 @@ BIND_TO_NEW_MESSAGE = [log_msg_handler,
 
 BIND_TO_POST_LOTS_RAISE = [send_categories_raised_notification_handler]
 
-BIND_TO_ORDERS_LIST_CHANGED = [update_profile_lots_handler]
+BIND_TO_ORDERS_LIST_CHANGED = [update_current_lots_handler, update_profile_lots_handler]
 
 BIND_TO_NEW_ORDER = [log_new_order_handler, setup_event_attributes_handler,
                      send_new_order_notification_handler, deliver_product_handler,
@@ -859,4 +889,4 @@ BIND_TO_ORDER_STATUS_CHANGED = [send_thank_u_message_handler, send_order_confirm
 BIND_TO_POST_DELIVERY = [send_delivery_notification_handler]
 
 BIND_TO_POST_START = [send_bot_started_notification_handler]
-# END OF FILE FunPayCortex-main/handlers.py
+# END OF FILE FunPayCortex/handlers.py

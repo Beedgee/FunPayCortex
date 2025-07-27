@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/auto_delivery_cp.py
+# FunPayCortex-main/tg_bot/auto_delivery_cp.py
 
 """
 В данном модуле описаны функции для ПУ конфига автовыдачи.
@@ -79,28 +79,18 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
     def open_ad_categories_list(c: CallbackQuery):
         """Открывает первый шаг привязки автовыдачи - выбор категории (игры)."""
         offset = int(c.data.split(":")[1])
+        last_update_time = cortex_instance.last_tg_profile_update.strftime("%d.%m.%Y %H:%M:%S") if cortex_instance.last_tg_profile_update else _("never_updated")
         
-        active_account = tg.get_active_account(c.from_user.id)
-        if not active_account:
-            bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
-            
-        last_update_time = active_account.profile.last_update_dt.strftime("%d.%m.%Y %H:%M:%S") if active_account.profile and hasattr(active_account.profile, 'last_update_dt') else _("never_updated")
-        
-        if not active_account.profile:
+        if not cortex_instance.tg_profile:
              bot.answer_callback_query(c.id, _("ad_lots_list_updating_err"), show_alert=True)
              return
 
         bot.edit_message_text(_("desc_ad_fp_lot_list", last_update_time),
-                              c.message.chat.id, c.message.id, reply_markup=kb.ad_categories_list(cortex_instance, active_account, offset))
+                              c.message.chat.id, c.message.id, reply_markup=kb.ad_categories_list(cortex_instance, offset))
         bot.answer_callback_query(c.id)
 
     def open_ad_subcategories_list(c: CallbackQuery):
         """Открывает второй шаг - выбор подкатегории."""
-        active_account = tg.get_active_account(c.from_user.id)
-        if not active_account:
-            bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
         try:
             category_id = int(c.data.split(":")[1])
             offset = int(c.data.split(":")[2])
@@ -108,20 +98,16 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             bot.answer_callback_query(c.id, _("gl_error"), show_alert=True)
             return
 
-        category = active_account.get_category(category_id)
+        category = cortex_instance.account.get_category(category_id)
         category_name = category.name if category else f"ID: {category_id}"
 
         bot.edit_message_text(f"📁 Выберите раздел в игре «{utils.escape(category_name)}»:",
                               c.message.chat.id, c.message.id,
-                              reply_markup=kb.ad_subcategories_list(cortex_instance, active_account, category_id, offset))
+                              reply_markup=kb.ad_subcategories_list(cortex_instance, category_id, offset))
         bot.answer_callback_query(c.id)
 
     def open_ad_lots_from_subcategory_list(c: CallbackQuery):
         """Открывает третий шаг - выбор конкретного лота из подкатегории."""
-        active_account = tg.get_active_account(c.from_user.id)
-        if not active_account:
-            bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
         try:
             category_id = int(c.data.split(":")[1])
             subcategory_id = int(c.data.split(":")[2])
@@ -133,22 +119,20 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
         msg = bot.edit_message_text("⏳ Загружаю лоты из раздела...", c.message.chat.id, c.message.id)
         
         try:
-            if not active_account.profile:
-                raise ValueError("Профиль активного аккаунта не загружен.")
-
-            all_lots = active_account.profile.get_common_lots()
+            # НЕ ДЕЛАЕМ СЕТЕВОЙ ЗАПРОС, а фильтруем уже загруженные данные
+            all_lots = cortex_instance.tg_profile.get_common_lots()
             lots_in_subcategory = [
                 lot for lot in all_lots if lot.subcategory and lot.subcategory.id == subcategory_id
             ]
 
-            subcategory = active_account.get_subcategory(SubCategoryTypes.COMMON, subcategory_id)
+            subcategory = cortex_instance.account.get_subcategory(SubCategoryTypes.COMMON, subcategory_id)
             subcategory_name = subcategory.name if subcategory else f"ID: {subcategory_id}"
 
             bot.edit_message_text(f"📦 Выберите лот из раздела «{utils.escape(subcategory_name)}»:",
                                   c.message.chat.id, msg.id,
                                   reply_markup=kb.ad_lots_from_subcategory_list(cortex_instance, lots_in_subcategory, category_id, subcategory_id, offset))
         except Exception as e:
-            logger.error(f"Ошибка при фильтрации лотов для подкатегории {subcategory_id} (аккаунт: {active_account.name}): {e}")
+            logger.error(f"Ошибка при фильтрации лотов для подкатегории {subcategory_id}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             bot.edit_message_text(_("ad_lots_list_updating_err"), c.message.chat.id, msg.id)
 
@@ -156,10 +140,6 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 
     def add_ad_to_lot_from_subcategory(c: CallbackQuery):
         """Обрабатывает финальный выбор лота и привязывает автовыдачу."""
-        active_account = tg.get_active_account(c.from_user.id)
-        if not active_account:
-            bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
         try:
             lot_index_on_page = int(c.data.split(":")[1])
             subcategory_id = int(c.data.split(":")[2])
@@ -170,10 +150,7 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             return
 
         try:
-            if not active_account.profile:
-                raise ValueError("Профиль активного аккаунта не загружен.")
-
-            all_lots = active_account.profile.get_common_lots()
+            all_lots = cortex_instance.tg_profile.get_common_lots()
             lots_in_subcategory = [
                 lot for lot in all_lots if lot.subcategory and lot.subcategory.id == subcategory_id
             ]
@@ -202,22 +179,18 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
             open_ad_lots_from_subcategory_list(c)
 
         except Exception as e:
-            logger.error(f"Ошибка при привязке лота из подкатегории {subcategory_id} (аккаунт: {active_account.name}): {e}")
+            logger.error(f"Ошибка при привязке лота из подкатегории {subcategory_id}: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             bot.answer_callback_query(c.id, _("ad_lots_list_updating_err"), show_alert=True)
             
     # ОБНОВЛЕНИЕ СПИСКА ЛОТОВ
     def update_funpay_lots_list(c: CallbackQuery):
         """Обновляет профиль пользователя в Telegram (cortex.tg_profile)."""
-        active_account = tg.get_active_account(c.from_user.id)
-        if not active_account:
-            bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
         offset = int(c.data.split(":")[1])
         new_msg = bot.send_message(c.message.chat.id, _("ad_updating_lots_list"))
         bot.answer_callback_query(c.id)
         
-        update_result = cortex_instance.update_lots_and_categories(active_account)
+        update_result = cortex_instance.update_lots_and_categories()
         if not update_result:
             bot.edit_message_text(_("ad_lots_list_updating_err"), new_msg.chat.id, new_msg.id)
             return
@@ -731,5 +704,3 @@ def init_auto_delivery_cp(cortex_instance: Cortex, *args):
 
 
 BIND_TO_PRE_INIT = [init_auto_delivery_cp]
-
-# END OF FILE FunPayCortex-main/tg_bot/auto_delivery_cp.py

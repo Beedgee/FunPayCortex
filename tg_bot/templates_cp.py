@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/tg_bot/templates_cp.py
+# START OF FILE FunPayCortex/tg_bot/templates_cp.py
 
 """
 В данном модуле описаны функции для ПУ шаблонами ответа.
@@ -134,23 +134,30 @@ def init_templates_cp(cortex_instance: Cortex, *args):
                                                              split_data[3], split_data[4])
         prev_page = int(prev_page_str)
         extra_data_for_back_button = split_data[5:]
-        account_name = extra_data_for_back_button[0]
-        
-        target_account = cortex_instance.accounts.get(account_name)
-        if not target_account:
-            bot.answer_callback_query(c.id, _("gl_error_try_again") + f" (account {account_name} not found)", show_alert=True)
-            return
 
         if template_index >= len(tg.answer_templates):
             bot.send_message(c.message.chat.id, _("tmplt_not_found_err", template_index),
                              message_thread_id=c.message.message_thread_id if c.message.is_topic_message else None)
+            
+            reply_kb_after_error = None
+            if prev_page == 0:
+                reply_kb_after_error = keyboards.reply(node_id, username, False, bool(int(extra_data_for_back_button[0])) if extra_data_for_back_button else False)
+            elif prev_page == 1:
+                reply_kb_after_error = keyboards.reply(node_id, username, True, bool(int(extra_data_for_back_button[0])) if extra_data_for_back_button else False)
+            elif prev_page == 2:
+                order_id_for_back = extra_data_for_back_button[0]
+                no_refund_flag_for_back = bool(int(extra_data_for_back_button[1]))
+                reply_kb_after_error = keyboards.new_order(order_id_for_back, username, node_id, no_refund=no_refund_flag_for_back)
+            
+            if reply_kb_after_error:
+                 bot.edit_message_reply_markup(c.message.chat.id, c.message.id, reply_markup=reply_kb_after_error)
             bot.answer_callback_query(c.id)
             return
 
         template_to_send = tg.answer_templates[template_index]
         text_with_username = template_to_send.replace("$username", safe_text(username))
         
-        send_success = cortex_instance.send_message(target_account, node_id, text_with_username, username)
+        send_success = cortex_instance.send_message(node_id, text_with_username, username)
 
         if prev_page == 3:
             bot.answer_callback_query(c.id, _("msg_sent_short") if send_success else _("msg_sending_error_short"), show_alert=True)
@@ -161,7 +168,7 @@ def init_templates_cp(cortex_instance: Cortex, *args):
             result_message_text = _("tmplt_msg_sent", node_id, username, utils.escape(text_with_username)) if send_success else \
                                   _("msg_sending_error", node_id, username)
             bot.send_message(c.message.chat.id, result_message_text,
-                             reply_markup=keyboards.reply(node_id, username, again=True, extend=True, account_name=account_name),
+                             reply_markup=keyboards.reply(node_id, username, again=True, extend=True),
                              message_thread_id=c.message.message_thread_id if c.message.is_topic_message else None)
         bot.answer_callback_query(c.id)
 
@@ -175,4 +182,4 @@ def init_templates_cp(cortex_instance: Cortex, *args):
 
 
 BIND_TO_PRE_INIT = [init_templates_cp]
-# END OF FILE FunPayCortex-main/tg_bot/templates_cp.py
+# END OF FILE FunPayCortex/tg_bot/templates_cp.py

@@ -783,11 +783,3 @@ ADD_AD_TO_LOT_FROM_SUBCATEGORY = "103"
 Финальный Callback для привязки лота, выбранного из списка подкатегории.
 Использование: CBT.ADD_AD_TO_LOT_FROM_SUBCATEGORY:lot_index:subcategory_id:category_id:offset
 """
-# Multi-Account
-ACCOUNTS_LIST = "110"
-SELECT_ACCOUNT = "111"
-EDIT_ACCOUNT = "112"
-TOGGLE_ACCOUNT = "113"
-ADD_ACCOUNT = "114"
-DELETE_ACCOUNT = "115"
-CONFIRM_DELETE_ACCOUNT = "116"

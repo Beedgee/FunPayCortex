@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/FunPayAPI/types.py
+# START OF FILE FunPayCortex/FunPayAPI/types.py
 
 """
 В данном модуле описаны все типы пакета FunPayAPI
@@ -364,9 +364,6 @@ class OrderShortcut(BaseOrderInfo):
     :param html: HTML код виджета заказа.
     :type html: :obj:`str`
 
-    :param account_name: Имя аккаунта, которому принадлежит заказ.
-    :type account_name: :obj:`str`
-
     :param dont_search_amount: не искать кол-во товара.
     :type dont_search_amount: :obj:`bool`, опционально
     """
@@ -374,7 +371,7 @@ class OrderShortcut(BaseOrderInfo):
     def __init__(self, id_: str, description: str, price: float, currency: Currency,
                  buyer_username: str, buyer_id: int, chat_id: int | str, status: OrderStatuses,
                  date: datetime.datetime, subcategory_name: str, subcategory: SubCategory | None,
-                 html: str, account_name: str, dont_search_amount: bool = False):
+                 html: str, dont_search_amount: bool = False):
         self.id: str = id_ if not id_.startswith("#") else id_[1:]
         """ID заказа."""
         self.description: str = description
@@ -401,8 +398,6 @@ class OrderShortcut(BaseOrderInfo):
         """Подкатегория, к которой относится заказ."""
         self.html: str = html
         """HTML код виджета заказа."""
-        self.account_name: str = account_name
-        """Имя аккаунта, которому принадлежит заказ."""
         BaseOrderInfo.__init__(self)
 
     def parse_amount(self) -> int:
@@ -1023,8 +1018,6 @@ class UserProfile:
         """Заблокирован ли пользователь."""
         self.html: str = html
         """HTML код страницы пользователя."""
-        self.last_update_dt: datetime.datetime | None = None
-        """Время последнего обновления профиля."""
         self.__lots_ids: dict[int | str, LotShortcut] = {}
         """Все лоты пользователя в виде словаря {ID: лот}}"""
         self.__sorted_by_subcategory_lots: dict[SubCategory, dict[int | str, LotShortcut]] = {}
@@ -1314,4 +1307,4 @@ class WithdrawHistory:
         self.items = items
         """Список будущих или недавних поступлений."""
 
-# END OF FILE FunPayCortex-main/FunPayAPI/types.py
+# END OF FILE FunPayCortex/FunPayAPI/types.py

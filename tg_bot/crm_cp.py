@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex-main/tg_bot/crm_cp.py
-
 # tg_bot/crm_cp.py
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -94,21 +92,19 @@ def crm_initial_scan(cortex: Cortex):
                                              "📊 Начинаю первичное сканирование истории продаж для CRM. Это может занять некоторое время...")
         except Exception as e:
             logger.warning(f"Не удалось отправить уведомление о начале сканирования CRM: {e}")
-    
+
+    next_order_id, batch, locale, subcs = cortex.account.get_sales()
     total_processed = 0
-    for account_name, account in cortex.accounts.items():
-        logger.info(f"Сканирую продажи для аккаунта: {account_name}...")
-        next_order_id, batch, locale, subcs = account.get_sales()
-        while True:
-            if not batch:
-                break
-            for sale in batch:
-                update_order_in_crm(cortex, sale.id, sale.buyer_id, sale.buyer_username, sale.status)
-                total_processed += 1
-            if not next_order_id:
-                break
-            time.sleep(1)
-            next_order_id, batch, _, _ = account.get_sales(start_from=next_order_id, locale=locale, sudcategories=subcs)
+    while True:
+        if not batch:
+            break
+        for sale in batch:
+            update_order_in_crm(cortex, sale.id, sale.buyer_id, sale.buyer_username, sale.status)
+            total_processed += 1
+        if not next_order_id:
+            break
+        time.sleep(1)
+        next_order_id, batch, _, _ = cortex.account.get_sales(start_from=next_order_id, locale=locale, sudcategories=subcs)
 
     save_crm_data(cortex)
     logger.info(f"Первичное сканирование CRM завершено. Обработано {total_processed} заказов.")
@@ -121,7 +117,7 @@ def crm_initial_scan(cortex: Cortex):
 
 def crm_initial_chat_hook(cortex: Cortex, event: InitialChatEvent):
     """Хук для создания профиля клиента при первом обнаружении чата."""
-    interlocutor_id = event.account.interlocutor_ids.get(event.chat.id)
+    interlocutor_id = cortex.account.interlocutor_ids.get(event.chat.id)
     if interlocutor_id:
         get_or_create_customer(cortex, interlocutor_id, event.chat.name)
 
@@ -147,4 +143,3 @@ BIND_TO_POST_INIT = [init_crm_cp]
 BIND_TO_NEW_ORDER = [crm_new_order_hook]
 BIND_TO_INIT_MESSAGE = [crm_initial_chat_hook]
 BIND_TO_ORDER_STATUS_CHANGED = [crm_order_status_hook]
-# END OF FILE FunPayCortex-main/tg_bot/crm_cp.py

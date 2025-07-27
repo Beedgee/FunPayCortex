@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex-main/tg_bot/utils.py
-
 """
 В данном модуле написаны инструменты, которыми пользуется Telegram бот.
 """
@@ -11,7 +9,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cortex import Cortex
-    import FunPayAPI
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B
 import configparser
@@ -226,25 +223,25 @@ def add_navigation_buttons(keyboard_obj: K, curr_offset: int,
     Добавляет к переданной клавиатуре кнопки след. / пред. страница.
     """
     extra_cb_part = (":" + ":".join(str(i) for i in extra)) if extra else ""
-
+    
     first_page_cb = f"{callback_text}:0{extra_cb_part}" if curr_offset > 0 else CBT.EMPTY
-
+    
     last_page_offset = 0
     if elements_amount > 0:
         num_pages = math.ceil(elements_amount / max_elements_on_page)
         last_page_offset = (num_pages - 1) * max_elements_on_page if num_pages > 0 else 0
-
+    
     last_page_cb = f"{callback_text}:{last_page_offset}{extra_cb_part}" if curr_offset + elements_on_page < elements_amount else CBT.EMPTY
 
     prev_page_offset = max(0, curr_offset - max_elements_on_page)
     prev_page_cb = f"{callback_text}:{prev_page_offset}{extra_cb_part}" if curr_offset > 0 else CBT.EMPTY
-
+    
     next_page_offset = curr_offset + elements_on_page
     next_page_cb = f"{callback_text}:{next_page_offset}{extra_cb_part}" if curr_offset + elements_on_page < elements_amount else CBT.EMPTY
 
     current_page_num = (curr_offset // max_elements_on_page) + 1
     total_pages_num = math.ceil(elements_amount / max_elements_on_page) if elements_amount > 0 else 1
-
+    
     page_info_text = f"{current_page_num}/{total_pages_num}"
 
     nav_buttons = []
@@ -257,17 +254,18 @@ def add_navigation_buttons(keyboard_obj: K, curr_offset: int,
     if curr_offset + elements_on_page < elements_amount:
         nav_buttons.append(B(_("gl_next").split(' ')[0], callback_data=next_page_cb))
         nav_buttons.append(B("⏩", callback_data=last_page_cb))
-
+    
     if len(nav_buttons) > 1:
         keyboard_obj.row(*nav_buttons)
     return keyboard_obj
 
 
-def generate_profile_text(account: FunPayAPI.Account) -> str:
+def generate_profile_text(cortex_instance: Cortex) -> str:
     """
     Генерирует текст с информацией об аккаунте.
     """
-    balance = account.balance
+    account = cortex_instance.account
+    balance = cortex_instance.balance
 
     profile_header = _("cmd_profile")
     if "посмотреть" in profile_header.lower():
@@ -298,21 +296,21 @@ def generate_profile_text(account: FunPayAPI.Account) -> str:
     pending_count = 0
     try:
         # Получаем актуальный список заказов вместо использования кэша
-        _, sales, _, _ = account.get_sales(include_closed=False, include_refunded=False)
+        _, sales, _, _ = cortex_instance.account.get_sales(include_closed=False, include_refunded=False)
         for order in sales:
             if order.status == OrderStatuses.PAID:
                 pending_count += 1
                 currency_str = str(order.currency)
                 pending_sum[currency_str] = pending_sum.get(currency_str, 0) + order.price
     except Exception as e:
-        logger.error(f"Не удалось получить заказы для /profile (аккаунт: {account.name}): {e}")
+        logger.error(f"Не удалось получить заказы для /profile: {e}")
 
     pending_sum_str = ", ".join([f"{v:,.2f} {k}" for k, v in pending_sum.items()]).replace(",", " ") or "0 ¤"
     
     # Текст для неподтвержденных заказов
     unconfirmed_text = f"⏳ <b>Неподтвержденные заказы:</b> <code>{pending_count}</code> (на <code>{pending_sum_str}</code>)\n" if pending_count > 0 else ""
 
-    return f"""📊 <b>{profile_header} «{escape(account.username)}» ({escape(account.name)})</b>
+    return f"""📊 <b>{profile_header} «{escape(account.username)}»</b>
 
 🆔 <b>ID:</b> <code>{account.id}</code>
 {unconfirmed_text}{balance_label_text_raw}
@@ -365,11 +363,12 @@ def generate_lot_info_text(lot_obj: configparser.SectionProxy) -> str:
 ⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S %d.%m.%Y')}</code>"""
 
 
-def generate_advanced_stats_text(account: FunPayAPI.Account, stats: dict) -> str:
+def generate_advanced_stats_text(cortex_instance: Cortex, stats: dict) -> str:
     """
     Генерирует текст с расширенной статистикой аккаунта.
     """
-    balance = account.balance
+    account = cortex_instance.account
+    balance = cortex_instance.balance
     
     def format_price_dict(price_dict: dict) -> str:
         if not price_dict:
@@ -382,7 +381,7 @@ def generate_advanced_stats_text(account: FunPayAPI.Account, stats: dict) -> str
 
     period_days = stats.get('parsing_period', 30)
     
-    text = f"""📊 <b>Статистика аккаунта «{escape(account.username)}» ({escape(account.name)})</b>
+    text = f"""📊 <b>Статистика аккаунта «{escape(account.username)}»</b>
 🆔 <b>ID:</b> <code>{account.id}</code>
 💰 <b>Баланс:</b> <code>{balance.total_rub:,.2f} ₽, {balance.total_usd:,.2f} $, {balance.total_eur:,.2f} €</code>
 🛒 <b>Незавершенных заказов:</b> <code>{account.active_sales}</code>
@@ -408,5 +407,3 @@ def generate_advanced_stats_text(account: FunPayAPI.Account, stats: dict) -> str
 ⏱️ {_('gl_last_update')}: <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>
 """
     return text.replace(",", " ")
-
-# END OF FILE FunPayCortex-main/tg_bot/utils.py

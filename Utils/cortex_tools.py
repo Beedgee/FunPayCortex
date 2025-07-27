@@ -1,4 +1,4 @@
-# START OF FILE FunPayCortex-main/Utils/cortex_tools.py
+# START OF FILE FunPayCortex/Utils/cortex_tools.py
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -10,7 +10,8 @@ from locales.localizer import Localizer
 
 if TYPE_CHECKING:
     from cortex import Cortex
-    import FunPayAPI
+
+import FunPayAPI.types
 
 from datetime import datetime
 import Utils.exceptions
@@ -217,11 +218,12 @@ def load_old_users(greetings_cooldown: float) -> dict[int, float]:
     return users
 
 
-def create_greeting_text(cortex_instance: Cortex, account: FunPayAPI.Account):
+def create_greeting_text(cortex_instance: Cortex):
     """
     Генерирует приветствие для вывода в консоль после загрузки данных о пользователе.
     """
-    balance = account.balance
+    account = cortex_instance.account
+    balance = cortex_instance.balance
     current_time = datetime.now()
     if current_time.hour < 4:
         greetings = "Какая прекрасная ночь"
@@ -233,7 +235,7 @@ def create_greeting_text(cortex_instance: Cortex, account: FunPayAPI.Account):
         greetings = "Добрый вечер"
 
     lines = [
-        f"* {greetings}, $CYAN{account.username} ($YELLOW{account.name}$CYAN).",
+        f"* {greetings}, $CYAN{account.username}.",
         f"* Ваш ID: $YELLOW{account.id}.",
         f"* Ваш текущий баланс: $CYAN{balance.total_rub} RUB $RESET| $MAGENTA{balance.total_usd} USD $RESET| $YELLOW{balance.total_eur} EUR",
         f"* Текущие незавершенные сделки: $YELLOW{account.active_sales}.",
@@ -497,4 +499,4 @@ def hash_password(password: str) -> str:
 def check_password(password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed_password.encode())  # Кодируем для проверки
 
-# END OF FILE FunPayCortex-main/Utils/cortex_tools.py
+# END OF FILE FunPayCortex/Utils/cortex_tools.py

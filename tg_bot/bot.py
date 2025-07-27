@@ -1,5 +1,3 @@
-# START OF FILE FunPayCortex-main/tg_bot/bot.py
-
 """
 В данном модуле написан Telegram бот.
 """
@@ -28,7 +26,7 @@ import requests
 
 from telebot.types import InlineKeyboardMarkup as K, InlineKeyboardButton as B, Message, CallbackQuery, BotCommand, \
     InputFile
-from tg_bot import utils, static_keyboards as skb, keyboards as kb, crm_cp, accounts_cp, CBT
+from tg_bot import utils, static_keyboards as skb, keyboards as kb, CBT, crm_cp
 from Utils import cortex_tools, updater
 from locales.localizer import Localizer
 
@@ -58,7 +56,6 @@ class TGBot:
         self.notification_settings = utils.load_notification_settings()
         self.answer_templates = utils.load_answer_templates()
         self.authorized_users = utils.load_authorized_users()
-        self.active_account_for_user: dict[int, str] = {} # {user_id: account_name}
         self._initialized = False
 
         self.commands = {
@@ -90,22 +87,6 @@ class TGBot:
             utils.NotificationTypes.announcement: 1,
             utils.NotificationTypes.critical: 1
         }
-
-    def get_active_account(self, user_id: int) -> FunPayAPI.Account | None:
-        """
-        Возвращает объект активного аккаунта для пользователя Telegram.
-        Если активный аккаунт не выбран, пытается выбрать первый доступный.
-        """
-        active_name = self.active_account_for_user.get(user_id)
-        if active_name and active_name in self.cortex.accounts:
-            return self.cortex.accounts[active_name]
-        
-        # Если активный аккаунт не найден или не установлен, выбираем первый из доступных
-        if self.cortex.accounts:
-            first_available_account_name = next(iter(self.cortex.accounts))
-            self.active_account_for_user[user_id] = first_available_account_name
-            return self.cortex.accounts[first_available_account_name]
-        return None
 
     def get_state(self, chat_id: int, user_id: int) -> dict | None:
         try:
@@ -288,29 +269,23 @@ class TGBot:
 
     def send_profile(self, m_or_c: Message | CallbackQuery):
         chat_id = m_or_c.chat.id if isinstance(m_or_c, Message) else m_or_c.message.chat.id
-        user_id = m_or_c.from_user.id
 
-        user_role = utils.get_user_role(self.authorized_users, user_id)
+        user_role = utils.get_user_role(self.authorized_users, m_or_c.from_user.id)
         if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats", fallback=False):
             self.bot.send_message(chat_id, _("manager_permission_denied"))
-            return
-        
-        active_account = self.get_active_account(user_id)
-        if not active_account:
-            self.bot.send_message(chat_id, _("no_active_fp_account"))
-            if isinstance(m_or_c, CallbackQuery): self.bot.answer_callback_query(m_or_c.id)
             return
 
         # Принудительно обновляем сессию для получения актуальных данных
         try:
-            self.cortex.update_session(active_account)
+            self.cortex.update_session()
         except Exception as e:
-            logger.error(f"Не удалось обновить сессию для /profile (аккаунт: {active_account.name}): {e}")
+            logger.error(f"Не удалось обновить сессию для /profile: {e}")
             self.bot.send_message(chat_id, _("profile_updating_error"))
-            if isinstance(m_or_c, CallbackQuery): self.bot.answer_callback_query(m_or_c.id)
+            if isinstance(m_or_c, CallbackQuery):
+                self.bot.answer_callback_query(m_or_c.id)
             return
 
-        text = utils.generate_profile_text(active_account)
+        text = utils.generate_profile_text(self.cortex)
         kb = skb.REFRESH_BTN()
 
         if isinstance(m_or_c, Message):
@@ -330,20 +305,15 @@ class TGBot:
             self.bot.send_message(m.chat.id, _("manager_permission_denied"))
             return
         
-        active_account = self.get_active_account(m.from_user.id)
-        if not active_account:
-            self.bot.send_message(m.chat.id, _("no_active_fp_account"))
-            return
-
         try:
-            active_account.balance = self.cortex.get_balance(active_account)
+            self.cortex.balance = self.cortex.get_balance()
         except Exception as e:
-            logger.error(f"Не удалось обновить баланс для меню статистики (аккаунт: {active_account.name}): {e}")
+            logger.error(f"Не удалось обновить баланс для меню статистики: {e}")
             self.bot.send_message(m.chat.id, _("gl_error_try_again"))
             return
 
         self.bot.send_message(m.chat.id, "📊 " + _("stat_adv_stats_button"),
-                              reply_markup=kb.statistics_menu(self.cortex, active_account.name))
+                              reply_markup=kb.statistics_menu(self.cortex))
 
     def send_advanced_profile_stats(self, c: CallbackQuery):
         """Отправляет расширенную статистику по аккаунту."""
@@ -351,22 +321,17 @@ class TGBot:
         if user_role == "manager" and not self.cortex.MAIN_CFG["ManagerPermissions"].getboolean("can_view_stats", fallback=False):
             self.bot.answer_callback_query(c.id, _("manager_permission_denied"), show_alert=True)
             return
-        
-        active_account = self.get_active_account(c.from_user.id)
-        if not active_account:
-            self.bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
-
+            
         progress_msg = self.bot.send_message(c.message.chat.id, _("updating_profile"))
         try:
-            stats_data = self.cortex.generate_advanced_stats(active_account)
-            stats_text = utils.generate_advanced_stats_text(active_account, stats_data)
+            stats_data = self.cortex.generate_advanced_stats()
+            stats_text = utils.generate_advanced_stats_text(self.cortex, stats_data)
             self.bot.edit_message_text(stats_text, progress_msg.chat.id, progress_msg.id,
-                                       reply_markup=skb.ADV_PROFILE_STATS_BTN(active_account.name))
+                                       reply_markup=skb.ADV_PROFILE_STATS_BTN())
         except Exception as e:
             self.bot.edit_message_text(_("profile_updating_error") + f"\nError: {str(e)[:100]}",
                                        progress_msg.chat.id, progress_msg.id)
-            logger.error(f"Ошибка при формировании расширенной статистики (аккаунт: {active_account.name}): {e}", exc_info=True)
+            logger.error(f"Ошибка при формировании расширенной статистики: {e}", exc_info=True)
         finally:
             self.bot.answer_callback_query(c.id)
 
@@ -375,72 +340,63 @@ class TGBot:
         if user_role != "admin":
             self.bot.send_message(m.chat.id, _("admin_only_command"))
             return
-        
-        active_account = self.get_active_account(m.from_user.id)
-        if not active_account:
-            self.bot.send_message(m.chat.id, _("no_active_fp_account"))
-            return
-
         result = self.bot.send_message(m.chat.id, _("act_change_golden_key"), reply_markup=skb.CLEAR_STATE_BTN())
-        self.set_state(m.chat.id, result.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY, {"account_name": active_account.name})
+        self.set_state(m.chat.id, result.id, m.from_user.id, CBT.CHANGE_GOLDEN_KEY)
 
     def change_cookie(self, m: Message):
-        state_data = self.get_state(m.chat.id, m.from_user.id)
-        account_name = state_data["data"]["account_name"]
         self.clear_state(m.chat.id, m.from_user.id, True)
-
         golden_key = m.text.strip()
         if len(golden_key) != 32 or golden_key != golden_key.lower() or len(golden_key.split()) != 1:
             self.bot.send_message(m.chat.id, _("cookie_incorrect_format"))
             return
         self.bot.delete_message(m.chat.id, m.id)
-        
-        target_account_cfg = self.cortex.FP_ACCOUNTS_CFG.get(account_name)
-        if not target_account_cfg:
-            self.bot.send_message(m.chat.id, _("gl_error_try_again") + " (account config not found)")
-            return
-
-        new_account_test = Account(account_name, golden_key, target_account_cfg["user_agent"], proxy=self.cortex.proxy,
-                                   locale=self.cortex.MAIN_CFG["FunPay"].get("locale", "ru"))
+        new_account = Account(golden_key, self.cortex.account.user_agent, proxy=self.cortex.proxy,
+                              locale=self.cortex.account.locale)
         try:
-            new_account_test.get()
+            new_account.get()
         except Exception as e:
-            logger.warning(_("cookie_error") + f" (аккаунт: {account_name}): {e}")
+            logger.warning(_("cookie_error") + f": {e}")
             logger.debug("TRACEBACK", exc_info=True)
             self.bot.send_message(m.chat.id, _("cookie_error"))
             return
-        
-        # Обновляем конфиг
-        self.cortex.MAIN_CFG.set(f"FunPayAccount_{account_name}", "golden_key", golden_key)
-        self.cortex.save_config(self.cortex.MAIN_CFG, "configs/_main.cfg")
-        
-        # Обновляем рантайм
-        if account_name in self.cortex.accounts:
-            self.cortex.accounts[account_name].golden_key = golden_key
 
-        accs_text = f" (<a href='https://funpay.com/users/{new_account_test.id}/'>{utils.escape(new_account_test.username)}</a>)"
-        self.bot.send_message(m.chat.id, f'{_("cookie_changed", accs_text)}{_("cookie_changed2")}',
+        one_acc = False
+        if new_account.id == self.cortex.account.id or self.cortex.account.id is None:
+            one_acc = True
+            self.cortex.account.golden_key = golden_key
+            try:
+                self.cortex.account.get()
+            except Exception as e:
+                logger.warning(_("cookie_error") + f": {e}")
+                logger.debug("TRACEBACK", exc_info=True)
+                self.bot.send_message(m.chat.id, _("cookie_error"))
+                return
+            accs = f" (<a href='https://funpay.com/users/{new_account.id}/'>{utils.escape(new_account.username)}</a>)"
+        else:
+            accs = f" (<a href='https://funpay.com/users/{self.cortex.account.id}/'>" \
+                   f"{utils.escape(self.cortex.account.username)}</a> ➔ <a href='https://funpay.com/users/{new_account.id}/'>" \
+                   f"{utils.escape(new_account.username)}</a>)"
+
+        self.cortex.MAIN_CFG.set("FunPay", "golden_key", golden_key)
+        self.cortex.save_config(self.cortex.MAIN_CFG, "configs/_main.cfg")
+        self.bot.send_message(m.chat.id, f'{_("cookie_changed", accs)}{_("cookie_changed2") if not one_acc else ""}',
                               disable_web_page_preview=True)
 
     def update_profile(self, c: CallbackQuery):
-        active_account = self.get_active_account(c.from_user.id)
-        if not active_account:
-            self.bot.answer_callback_query(c.id, _("no_active_fp_account"), show_alert=True)
-            return
-
         new_msg = self.bot.send_message(c.message.chat.id, _("updating_profile"))
         try:
-            self.cortex.update_session(active_account)
+            self.cortex.account.get()
+            self.cortex.balance = self.cortex.get_balance()
             self.bot.delete_message(new_msg.chat.id, new_msg.id)
             try:
-                self.bot.edit_message_text(utils.generate_profile_text(active_account), c.message.chat.id,
+                self.bot.edit_message_text(utils.generate_profile_text(self.cortex), c.message.chat.id,
                                        c.message.id, reply_markup=skb.REFRESH_BTN())
             except ApiTelegramException as e:
                 if "message is not modified" not in e.description:
                     raise
         except Exception as e:
             self.bot.edit_message_text(_("profile_updating_error") + f"\nError: {str(e)[:100]}", new_msg.chat.id, new_msg.id)
-            logger.error(f"Ошибка при обновлении профиля через TG (аккаунт: {active_account.name}): {e}")
+            logger.error(f"Ошибка при обновлении профиля через TG: {e}")
             logger.debug("TRACEBACK", exc_info=True)
         finally:
             self.bot.answer_callback_query(c.id)
@@ -717,27 +673,20 @@ class TGBot:
 
     def act_send_funpay_message(self, c: CallbackQuery):
         split_data = c.data.split(":")
-        account_name, node_id_str, username = split_data[1], split_data[2], split_data[3]
-        node_id = int(node_id_str)
-
+        node_id = int(split_data[1])
+        username = split_data[2] if len(split_data) > 2 else None
         result_msg = self.bot.send_message(c.message.chat.id, _("enter_msg_text"), reply_markup=skb.CLEAR_STATE_BTN())
         self.set_state(c.message.chat.id, result_msg.id, c.from_user.id,
-                       CBT.SEND_FP_MESSAGE, {"node_id": node_id, "username": username, "account_name": account_name})
+                       CBT.SEND_FP_MESSAGE, {"node_id": node_id, "username": username})
         self.bot.answer_callback_query(c.id)
 
     def send_funpay_message(self, message: Message):
         state_data = self.get_state(message.chat.id, message.from_user.id)["data"]
-        node_id, username, account_name = state_data["node_id"], state_data["username"], state_data["account_name"]
-        target_account = self.cortex.accounts.get(account_name)
+        node_id, username = state_data["node_id"], state_data["username"]
         self.clear_state(message.chat.id, message.from_user.id, True)
-
-        if not target_account:
-            self.bot.reply_to(message, _("gl_error_try_again") + f" (account {account_name} not found)")
-            return
-
         response_text_to_send = message.text.strip()
-        send_success = self.cortex.send_message(target_account, node_id, response_text_to_send, username, watermark=False)
-        reply_kb = kb.reply(node_id, username, again=True, extend=True, account_name=account_name)
+        send_success = self.cortex.send_message(node_id, response_text_to_send, username, watermark=False)
+        reply_kb = kb.reply(node_id, username, again=True, extend=True)
         if send_success:
             self.bot.reply_to(message, _("msg_sent", node_id, utils.escape(username or "Пользователь")), reply_markup=reply_kb)
         else:
@@ -843,12 +792,12 @@ class TGBot:
 
     def open_reply_menu(self, c: CallbackQuery):
         split_data = c.data.split(":")
-        account_name, node_id, username = split_data[1], int(split_data[2]), split_data[3]
-        is_again_reply = int(split_data[4])
-        should_extend = True if len(split_data) > 5 and int(split_data[5]) else False
+        node_id, username = int(split_data[1]), split_data[2]
+        is_again_reply = int(split_data[3])
+        should_extend = True if len(split_data) > 4 and int(split_data[4]) else False
         try:
             self.bot.edit_message_reply_markup(c.message.chat.id, c.message.id,
-                                           reply_markup=kb.reply(node_id, username, bool(is_again_reply), should_extend, account_name))
+                                           reply_markup=kb.reply(node_id, username, bool(is_again_reply), should_extend))
         except ApiTelegramException as e:
             if e.error_code == 400 and "message is not modified" in e.description.lower():
                 pass
@@ -858,52 +807,69 @@ class TGBot:
 
 
     def extend_new_message_notification(self, c: CallbackQuery):
-        account_name, chat_id_str, username = c.data.split(":")[1:]
-        target_account = self.cortex.accounts.get(account_name)
-        if not target_account:
-            self.bot.answer_callback_query(c.id, _("gl_error_try_again") + " (account not found)", show_alert=True)
-            return
-
+        chat_id_str, username = c.data.split(":")[1:]
         try:
-            chat_obj = target_account.get_chat(int(chat_id_str))
+            chat_obj = self.cortex.account.get_chat(int(chat_id_str))
         except Exception as e:
-            logger.warning(f"Не удалось получить чат {chat_id_str} для расширения (аккаунт: {account_name}): {e}")
+            logger.warning(f"Не удалось получить чат {chat_id_str} для расширения: {e}")
             logger.debug("TRACEBACK", exc_info=True)
             self.bot.answer_callback_query(c.id, _("get_chat_error"), show_alert=True)
             return
 
-        text_to_send = f"<b>[{account_name}]</b>\n"
+        text_to_send = ""
         if chat_obj.looking_link:
             text_to_send += f"<b>{_('viewing')}:</b> <a href=\"{chat_obj.looking_link}\">{utils.escape(chat_obj.looking_text)}</a>\n\n"
 
         chat_messages = chat_obj.messages[-10:]
         last_author_id = -1
-        
+        last_by_bot_flag = False
+        last_author_badge = None
+        last_by_fpcortex = False
+
         for msg_item in chat_messages:
-            if msg_item.author_id != last_author_id:
-                sender_id = msg_item.author_id
-                sender_name = msg_item.author
-                receiver_id = target_account.id if sender_id != target_account.id else msg_item.interlocutor_id
-                receiver_name = target_account.username if sender_id != target_account.id else msg_item.chat_name
-                
-                sender_link = f"<a href=\"https://funpay.com/users/{sender_id}/\">{utils.escape(sender_name)}</a>" if sender_id != 0 else f"<i><b>FunPay</b></i>"
-                receiver_link = f"<a href=\"https://funpay.com/users/{receiver_id}/\">{utils.escape(receiver_name)}</a>"
-                text_to_send += f"{sender_link} => {receiver_link}\n"
-            
+            author_prefix = ""
+            if msg_item.author_id == last_author_id and \
+               msg_item.by_bot == last_by_bot_flag and \
+               msg_item.badge == last_author_badge and \
+               last_by_fpcortex == (msg_item.by_bot and msg_item.author_id == self.cortex.account.id):
+                pass
+            elif msg_item.author_id == self.cortex.account.id:
+                author_prefix = f"<i><b>🤖 {_('you')} (<i>FPCortex</i>):</b></i> " if msg_item.by_bot else f"<i><b>🫵 {_('you')}:</b></i> "
+                if msg_item.is_autoreply:
+                    author_prefix = f"<i><b>📦 {_('you')} ({utils.escape(msg_item.badge or '')}):</b></i> "
+            elif msg_item.author_id == 0:
+                author_prefix = f"<i><b>🔵 {utils.escape(msg_item.author or 'FunPay')}: </b></i>"
+            elif msg_item.is_employee:
+                author_prefix = f"<i><b>🆘 {utils.escape(msg_item.author or 'Support')} ({utils.escape(msg_item.badge or '')}): </b></i>"
+            elif msg_item.author == msg_item.chat_name:
+                author_prefix = f"<i><b>👤 {utils.escape(msg_item.author or 'User')}: </b></i>"
+                if msg_item.is_autoreply:
+                    author_prefix = f"<i><b>🛍️ {utils.escape(msg_item.author or 'User')} ({utils.escape(msg_item.badge or '')}):</b></i> "
+                elif msg_item.author and msg_item.author in self.cortex.blacklist:
+                    author_prefix = f"<i><b>🚷 {utils.escape(msg_item.author)}: </b></i>"
+                elif msg_item.by_bot and msg_item.author_id != self.cortex.account.id :
+                     author_prefix = f"<i><b>👾 {utils.escape(msg_item.author or 'Bot')}: </b></i>"
+            else:
+                author_prefix = f"<i><b>⚖️ {utils.escape(msg_item.author or 'Arbiter')} ({_('support')}): </b></i>"
+
             message_content_text = msg_item.text
             if msg_item.image_link:
                  message_content_text = f"<a href=\"{msg_item.image_link}\">" \
-                                     f"{utils.escape(msg_item.image_name) if self.cortex.MAIN_CFG['NewMessageView'].getboolean('showImageName') else _('photo')}</a>"
+                                     f"{utils.escape(msg_item.image_name) if self.cortex.MAIN_CFG['NewMessageView'].getboolean('showImageName') and not (msg_item.author_id == self.cortex.account.id and msg_item.by_bot) else _('photo')}</a>"
 
-            text_to_send += f"{utils.escape(message_content_text or '')}\n"
+            text_to_send += f"{author_prefix}{utils.escape(message_content_text or '')}\n\n"
+
             last_author_id = msg_item.author_id
-        
+            last_by_bot_flag = msg_item.by_bot
+            last_author_badge = msg_item.badge
+            last_by_fpcortex = msg_item.by_bot and msg_item.author_id == self.cortex.account.id
+
         text_to_send = text_to_send.strip()
-        if not chat_messages: text_to_send += f"<i>({_('no_messages_to_display')})</i>"
+        if not text_to_send: text_to_send = f"<i>({_('no_messages_to_display')})</i>"
 
         try:
             self.bot.edit_message_text(text_to_send, c.message.chat.id, c.message.id,
-                                   reply_markup=kb.reply(int(chat_id_str), username, False, False, account_name))
+                                   reply_markup=kb.reply(int(chat_id_str), username, False, False))
         except ApiTelegramException as e:
             if e.error_code == 400 and "message is not modified" in e.description.lower():
                 pass
@@ -915,73 +881,76 @@ class TGBot:
 
     def ask_confirm_refund(self, call: CallbackQuery):
         split_data = call.data.split(":")
-        account_name, order_id, node_id, username = split_data[1], split_data[2], int(split_data[3]), split_data[4]
-        refund_confirm_keyboard = kb.new_order(order_id, username, node_id, confirmation=True, account_name=account_name)
+        order_id, node_id, username = split_data[1], int(split_data[2]), split_data[3]
+        refund_confirm_keyboard = kb.new_order(order_id, username, node_id, confirmation=True)
         try:
             self.bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=refund_confirm_keyboard)
         except ApiTelegramException as e:
-            if "message is not modified" not in e.description: raise
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(call.id)
 
     def cancel_refund(self, call: CallbackQuery):
         split_data = call.data.split(":")
-        account_name, order_id, node_id, username = split_data[1], split_data[2], int(split_data[3]), split_data[4]
-        order_keyboard = kb.new_order(order_id, username, node_id, account_name=account_name, cortex=self.cortex)
+        order_id, node_id, username = split_data[1], int(split_data[2]), split_data[3]
+        order_keyboard = kb.new_order(order_id, username, node_id)
         try:
             self.bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=order_keyboard)
         except ApiTelegramException as e:
-            if "message is not modified" not in e.description: raise
+            if "message is not modified" not in e.description:
+                raise
         self.bot.answer_callback_query(call.id)
 
     def refund(self, c: CallbackQuery):
         split_data = c.data.split(":")
-        account_name, order_id, node_id, username = split_data[1], split_data[2], int(split_data[3]), split_data[4]
-        target_account = self.cortex.accounts.get(account_name)
-        if not target_account:
-            self.bot.answer_callback_query(c.id, _("gl_error_try_again") + " (account not found)", show_alert=True)
-            return
-
+        order_id, node_id, username = split_data[1], int(split_data[2]), split_data[3]
         progress_message = None
         attempts_left = 3
         refund_successful = False
         while attempts_left > 0:
             try:
-                target_account.refund(order_id)
+                self.cortex.account.refund(order_id)
                 refund_successful = True
                 break
             except Exception as e:
-                logger.error(f"Ошибка возврата заказа #{order_id} (аккаунт: {account_name}), попытка {4 - attempts_left}: {e}")
+                logger.error(f"Ошибка возврата заказа #{order_id}, попытка {4 - attempts_left}: {e}")
                 logger.debug("TRACEBACK", exc_info=True)
                 attempt_message_text = _("refund_attempt", order_id, attempts_left -1)
                 try:
-                    if not progress_message: progress_message = self.bot.send_message(c.message.chat.id, attempt_message_text)
-                    else: self.bot.edit_message_text(attempt_message_text, progress_message.chat.id, progress_message.id)
-                except ApiTelegramException as tg_api_err: logger.warning(f"Не удалось обновить сообщение о прогрессе возврата: {tg_api_err}")
+                    if not progress_message:
+                        progress_message = self.bot.send_message(c.message.chat.id, attempt_message_text)
+                    else:
+                        self.bot.edit_message_text(attempt_message_text, progress_message.chat.id, progress_message.id)
+                except ApiTelegramException as tg_api_err:
+                     logger.warning(f"Не удалось обновить сообщение о прогрессе возврата: {tg_api_err}")
                 attempts_left -= 1
                 if attempts_left > 0: time.sleep(1)
-        
         final_message_text = _("refund_complete", order_id) if refund_successful else _("refund_error", order_id)
-        final_message_text = f"<b>[{account_name}]</b> {final_message_text}"
         try:
-            if not progress_message: self.bot.send_message(c.message.chat.id, final_message_text)
-            else: self.bot.edit_message_text(final_message_text, progress_message.chat.id, progress_message.id)
-        except ApiTelegramException as tg_api_err_final: logger.warning(f"Не удалось отправить/изменить финальное сообщение о возврате: {tg_api_err_final}")
+            if not progress_message:
+                self.bot.send_message(c.message.chat.id, final_message_text)
+            else:
+                self.bot.edit_message_text(final_message_text, progress_message.chat.id, progress_message.id)
+        except ApiTelegramException as tg_api_err_final:
+             logger.warning(f"Не удалось отправить/изменить финальное сообщение о возврате: {tg_api_err_final}")
 
-        order_keyboard_after_refund = kb.new_order(order_id, username, node_id, no_refund=refund_successful, account_name=account_name, cortex=self.cortex)
+        order_keyboard_after_refund = kb.new_order(order_id, username, node_id, no_refund=refund_successful)
         try:
             self.bot.edit_message_reply_markup(c.message.chat.id, c.message.id, reply_markup=order_keyboard_after_refund)
         except ApiTelegramException as tg_api_err_kb:
-            if "message is not modified" not in tg_api_err_kb.description and "message to edit not found" not in tg_api_err_kb.description.lower():
+            if tg_api_err_kb.error_code == 400 and "message to edit not found" in tg_api_err_kb.description.lower():
+                logger.warning(f"Не удалось обновить клавиатуру для заказа {order_id}: исходное сообщение не найдено.")
+            elif "message is not modified" not in tg_api_err_kb.description:
                 logger.warning(f"Не удалось обновить клавиатуру для заказа {order_id}: {tg_api_err_kb}")
         self.bot.answer_callback_query(c.id)
 
     def open_order_menu(self, c: CallbackQuery):
         split_data = c.data.split(":")
-        account_name, node_id, username, order_id = split_data[1], int(split_data[2]), split_data[3], split_data[4]
-        no_refund_flag = bool(int(split_data[5]))
+        node_id, username, order_id = int(split_data[1]), split_data[2], split_data[3]
+        no_refund_flag = bool(int(split_data[4]))
         try:
             self.bot.edit_message_reply_markup(c.message.chat.id, c.message.id,
-                                           reply_markup=kb.new_order(order_id, username, node_id, no_refund=no_refund_flag, account_name=account_name, cortex=self.cortex))
+                                           reply_markup=kb.new_order(order_id, username, node_id, no_refund=no_refund_flag))
         except ApiTelegramException as e:
             if e.error_code == 400 and "message is not modified" in e.description.lower(): pass
             else: raise e
@@ -1515,4 +1484,3 @@ class TGBot:
     def is_file_handler(self, m: Message) -> bool:
         state = self.get_state(m.chat.id, m.from_user.id)
         return state is not None and state["state"] in self.file_handlers
-# END OF FILE FunPayCortex-main/tg_bot/bot.py
