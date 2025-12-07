@@ -260,7 +260,7 @@ flowchart TD
 
 ## 🤝 Поддержка и связь
 
-- Telegram чат: [FunPay Cortex](https://t.me/RobotFunPay)
+- Telegram чат: [FunPayBot](https://t.me/RobotFunPay)
 - Автор: [@beedge](https://t.me/beedge)
 - Вопросы, баги — [Issues](https://github.com/Beedgee/FunPayCortex/issues)
 
@@ -293,4 +293,5 @@ MIT © Beedgee
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=rect&color=FFB347,FFD700,FFFACD,ADFF2F,7CFC00,36CA5C&height=80&section=footer&text=FunPay%20Cortex%20%E2%80%94%20Ваша%20торговля%20на%20автопилоте!&fontSize=24&fontAlignY=35" />
 </p>
+
 
