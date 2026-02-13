@@ -1,5 +1,5 @@
 <!-- Open Graph / Twitter Card Meta -->
-<meta property="og:title" content="FunPay Cortex — Авто-Бот для FunPay ☄️" />
+<meta property="og:title" content="FunPay Cortex — Авто-Бот для FunPay 🔥" />
 <meta property="og:description" content="Мощный Telegram-бот для FunPay: автосдача, автоответы, автоподнятие, плагины. Экономьте время, автоматизируйте торговлю на FunPay!" />
 <meta property="og:image" content="https://i.imgur.com/mU4Jum5.png" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -293,5 +293,6 @@ MIT © Beedgee
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=rect&color=FFB347,FFD700,FFFACD,ADFF2F,7CFC00,36CA5C&height=80&section=footer&text=FunPay%20Cortex%20%E2%80%94%20Ваша%20торговля%20на%20автопилоте!&fontSize=24&fontAlignY=35" />
 </p>
+
 
 
